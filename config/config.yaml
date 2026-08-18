@@ -1,0 +1,514 @@
+ocean_root:    /PATH
+home_root:     /PATH
+user_home:     /PATH
+datasets_root: /PATH/datasets
+repo_root:     "${home_root}/PATH/bias_origin"
+
+
+xray_root:     "${datasets_root}/XRay"
+outputs_root:  "${ocean_root}/PATH/bias_origin"
+manifests_dir: "${repo_root}/data_loader"
+
+BiasOrigin:
+  global_config_path: "${repo_root}/config/config.yaml"
+  seed: 42
+  target_resolution: 224
+
+  hf_token: "hf_YOUR_TOKEN_HERE"
+
+  datasets_root: "${datasets_root}"
+  xray_root:     "${xray_root}"
+  outputs_root:  "${outputs_root}"
+  repo_root:     "${repo_root}"
+  manifests_dir: "${manifests_dir}"
+  user_home:     "${user_home}"
+
+  cxr:
+    pool_manifest_csv:  "${manifests_dir}/cxr_pool_manifest.csv"
+    paired_reports_csv: "${manifests_dir}/cxr_paired_reports_manifest.csv"
+
+    verify_image_exists: true
+    drop_lateral:        true
+
+    label_policy_default:
+      positive_code:  1
+      negative_codes: [0, 2]
+      exclude_codes:  [3]
+
+    reports:
+      sources:      [mimic, chexpert_plus]
+      use_sections: [section_findings, section_impression]
+      scrub_terms_file: "${repo_root}/data_loader/demographic_scrub_terms.txt"
+      scrubbed_reports_csv: "${manifests_dir}/cxr_paired_reports_scrubbed_manifest.csv"
+      amplified_reports_csv: "${manifests_dir}/cxr_paired_reports_amplified_manifest.csv"
+      amplify_attributes: [race_grp, sex_grp, age_grp]
+      amplify_template: "Patient demographics: {fields}."
+
+    mimic_demographics:
+      enabled:        true
+      hosp_dir:       "${xray_root}/PATH"
+      admissions_csv: "${xray_root}/PATH/admissions.csv.gz"
+      patients_csv:   "${xray_root}/PATH/patients.csv.gz"
+      out_csv:        "${manifests_dir}/mimic_demographics.csv"
+
+    sites:
+      mimic:
+        enabled:        true
+        image_root:     "${xray_root}/MIMIC"
+        master_csv:     "${xray_root}/MIMIC/masterlist.csv"
+        split_col:      split
+        subject_id_col: subject_id
+        study_id_col:   study_id
+        age_col:        age
+        sex_col:        gender
+        view_col:       view
+        report_col:     report_rel_path
+        image_key_col:  jpg_rel_path
+        race_col:       null
+        insurance_col:  null
+
+      chexpert:
+        enabled:        true
+        image_root:     "${xray_root}"
+        master_csv:     "${xray_root}/CheXpert-v1.0/masterlist.csv"
+        split_col:      split
+        subject_id_col: subject_id
+        study_id_col:   null
+        age_col:        age
+        sex_col:        gender
+        view_col:       AP_PA
+        image_key_col:  jpg_rel_path
+        report_col:     null
+        chexpert_plus_csv:  "${xray_root}/CheXpert-v1.0/chexpert_plus.csv"
+        report_join_col:    jpg_rel_path
+        race_col:           race
+        ethnicity_col:      ethnicity
+        insurance_col:      insurance_type
+
+      vindr_cxr:
+        enabled:        true
+        image_root:     "${xray_root}/vindr-cxr1"
+        master_csv:     "${xray_root}/vindr-cxr1/masterlist.csv"
+        split_col:      split
+        subject_id_col: null
+        study_id_col:   null
+        age_col:        age
+        sex_col:        gender
+        view_col:       null
+        image_key_col:  image_id
+        image_subdir_col: split
+        report_col:     null
+        race_col:       null
+        insurance_col:  null
+
+      nih_cxr14:
+        enabled:        true
+        image_root:     "${xray_root}/NIH_ChestX-ray14/CXR14"
+        master_csv:     "${xray_root}/NIH_ChestX-ray14/masterlist.csv"
+        split_col:      split
+        subject_id_col: patient_id
+        study_id_col:   null
+        age_col:        age
+        sex_col:        gender
+        view_col:       view_position
+        image_key_col:  img_rel_path
+        report_col:     null
+        race_col:       null
+        insurance_col:  null
+
+      padchest:
+        enabled:        true
+        image_root:     "${xray_root}/padchest"
+        master_csv:     "${xray_root}/padchest/masterlist.csv"
+        split_col:      split
+        subject_id_col: PatientID
+        study_id_col:   StudyID
+        age_col:        age
+        sex_col:        gender
+        view_col:       view
+        image_key_col:  ImageID
+        image_subdir_col: ImageDir
+        report_col:     null
+        race_col:       null
+        insurance_col:  null
+
+      vindr_pcxr:
+        enabled:        true
+        image_root:     "${xray_root}/vindr-pcxr"
+        master_csv:     "${xray_root}/vindr-pcxr/masterlist.csv"
+        split_col:      split
+        subject_id_col: null
+        study_id_col:   null
+        age_col:        null
+        sex_col:        null
+        view_col:       null
+        image_key_col:  image_id
+        image_subdir_col: split
+        report_col:     null
+        race_col:       null
+        insurance_col:  null
+
+  derm:
+    enabled:           true
+    image_root:        "${datasets_root}/Derm"
+    pool_manifest_csv: "${manifests_dir}/derm_pool_manifest.csv"
+    split_fractions:   {train: 0.6, val: 0.1, test: 0.3}
+
+    sources:
+      ddi:
+        enabled:        true
+        dir:            "${datasets_root}/Derm/DDI"
+        metadata_csv:   "${datasets_root}/Derm/DDI/ddi_metadata.csv"
+        images_subdir:  images
+        file_col:       DDI_file
+        skin_tone_col:  skin_tone
+        malignant_col:  malignant
+        disease_col:    disease
+        patient_col:    null
+
+      fitz17k:
+        enabled:        true
+        dir:            "${datasets_root}/Derm/Fitzpatrick17k"
+        csv:            "${datasets_root}/Derm/Fitzpatrick17k/fitzpatrick17k.csv"
+        images_subdir:  images
+        id_col:         md5hash
+        fst_col:        fitzpatrick_scale
+        three_part_col: three_partition_label
+        condition_col:  label
+        drop_unknown_fst: true
+
+      isic2019:
+        enabled:        true
+        dir:            "${datasets_root}/Derm/ISIC2019"
+        images_subdir:  ISIC_2019_Training_Input
+        groundtruth_csv: "${datasets_root}/Derm/ISIC2019/ISIC_2019_Training_GroundTruth.csv"
+        metadata_csv:    "${datasets_root}/Derm/ISIC2019/ISIC_2019_Training_Metadata.csv"
+        image_col:      image
+        age_col:        age_approx
+        sex_col:        sex
+        lesion_col:     lesion_id
+        malignant_classes: [MEL, BCC, AK, SCC]
+        benign_classes:    [NV, BKL, DF, VASC]
+
+  fundus:
+    enabled:           true
+    image_root:        "${datasets_root}/Fundus"
+    pool_manifest_csv: "${manifests_dir}/fundus_pool_manifest.csv"
+    sources:
+      fairvision:
+        enabled:       true
+        dir:           "${datasets_root}/Fundus/Harvard-FairVision"
+        diseases:      [glaucoma]
+        metadata_csv:  "${datasets_root}/Fundus/Harvard-FairVision/data_summary.csv"
+        modality_used: slo
+        attributes:    [race, gender, ethnicity, age]
+        image_path_col: filename
+        label_col:      glaucoma
+        split_col:      use
+        race_col:       race
+        gender_col:     gender
+        ethnicity_col:  ethnicity
+        age_col:        age
+        slo_prefix:     slo_fundus_
+        split_folders:  {training: train, validation: valid, test: test}
+
+  sensitive:
+    age_bins:        [0, 40, 60, 80, 200]
+    age_bin_labels:  ["0_40", "40_60", "60_80", "80_plus"]
+    race_groups:     [White, Black, Asian, Hispanic_or_Latino, Other]
+    race_patterns:
+      White:               ["white", "caucasian"]
+      Black:               ["black", "african"]
+      Asian:               ["asian"]
+      Hispanic_or_Latino:  ["hispanic", "latino", "latina", "latinx"]
+    insurance_groups: [Medicare, Medicaid, Private, Other]
+    insurance_patterns:
+      Medicare:  ["medicare"]
+      Medicaid:  ["medicaid"]
+      Private:   ["private", "commercial"]
+    fst_groups:      [I_II, III_IV, V_VI]
+    monk_groups:     [light, medium, dark]
+    fundus_race_groups: [White, Black, Asian]
+    sex_values:      [M, F]
+    control_attributes: [view, site]
+
+  subgroup_counts:
+    out_csv: "${manifests_dir}/subgroup_counts.csv"
+
+  embeddings:
+    output_dir:   "${outputs_root}/embeddings"
+    batch_size:   64
+    num_workers:  4
+    fp16:         true
+    purge_hf_cache_after_use: true
+    hf_cache_dir: "${user_home}/.cache/huggingface/hub"
+    pools:
+      cxr_pool:    {manifest: "${manifests_dir}/cxr_pool_manifest.csv",    modality: cxr}
+      derm_pool:   {manifest: "${manifests_dir}/derm_pool_manifest.csv",   modality: derm}
+      fundus_pool: {manifest: "${manifests_dir}/fundus_pool_manifest.csv", modality: fundus}
+
+  encoder_panel:
+    image:
+      rad_dino:
+        hf_id: microsoft/rad-dino
+        type: dino_cls
+        dim: 768
+        objective: ssl
+        modality: cxr
+        roles: [cxr, offtheshelf]
+      biomedclip_image:
+        hf_id: microsoft/BiomedCLIP-PubMedBERT_256-vit_base_patch16_224
+        type: clip_pooled
+        dim: 512
+        objective: image_text
+        modality: cxr
+        roles: [cxr, offtheshelf]
+      txrv_densenet:
+        hf_id: TXRV_BUILTIN
+        weights: densenet121-res224-all
+        type: txrv
+        dim: 1024
+        objective: supervised
+        modality: cxr
+        roles: [cxr, offtheshelf]
+      monet:
+        hf_id: chanwkim/monet
+        type: clip_pooled
+        dim: 768
+        objective: image_text
+        modality: derm
+        roles: [derm, offtheshelf]
+      panderm:
+        hf_id: redlessone/DermLIP_ViT-B-16
+        type: open_clip_custom
+        dim: 512
+        objective: image_text
+        modality: derm
+        roles: [derm, offtheshelf, optional]
+      retfound:
+        hf_id: iszt/RETFound_mae_meh
+        type: dino_cls
+        dim: 1024
+        objective: ssl
+        modality: fundus
+        roles: [fundus, offtheshelf]
+      flair:
+        hf_id: FLAIR_LOCAL
+        type: flair
+        dim: 512
+        objective: image_text
+        modality: fundus
+        roles: [fundus, offtheshelf]
+      dinov3_l:
+        hf_id: facebook/dinov3-vitl16-pretrain-lvd1689m
+        type: dino_cls
+        dim: 1024
+        objective: general_ssl
+        modality: general
+        roles: [general, offtheshelf]
+      dinov2_large:
+        hf_id: facebook/dinov2-large
+        type: dino_cls
+        dim: 1024
+        objective: general_ssl
+        modality: general
+        roles: [general, offtheshelf]
+      clip_vitl14:
+        hf_id: openai/clip-vit-large-patch14
+        type: clip_pooled
+        dim: 768
+        objective: general_image_text
+        modality: general
+        roles: [general, offtheshelf]
+      siglip2_large:
+        hf_id: google/siglip2-large-patch16-512
+        type: clip_pooled
+        dim: 1152
+        objective: general_image_text
+        modality: general
+        roles: [general, offtheshelf]
+      dinov3_s:
+        hf_id: facebook/dinov3-vits16-pretrain-lvd1689m
+        type: dino_cls
+        dim: 384
+        objective: general_ssl
+        modality: general
+        roles: [init]
+      dinov3_b:
+        hf_id: facebook/dinov3-vitb16-pretrain-lvd1689m
+        type: dino_cls
+        dim: 768
+        objective: general_ssl
+        modality: general
+        roles: [init]
+      random_init_vit_s:
+        hf_id: null
+        type: random_init
+        arch: vit_small_patch16_224
+        dim: 384
+        objective: none
+        modality: general
+        roles: [control, random_init]
+
+  controlled:
+    ckpts_dir:        "${outputs_root}/controlled_ckpts"
+    mixtures_dir:     "${manifests_dir}/controlled_mixtures"
+    results_e1_dir:   "${outputs_root}/results_e1_driver"
+    objectives:       [ssl, supervised, image_text]
+    backbones:        [vit_s, vit_b]
+    inits:            {vit_s: dinov3_s, vit_b: dinov3_b}
+    data_compositions: [natural, balanced]
+    balance_attribute: race
+    scrubbed_objective: image_text
+    amplified_objective: image_text
+    run_amplified: true
+    seed_variance:
+      objectives:  [ssl, supervised, image_text]
+      backbone:    vit_s
+      data_comp:   natural
+      seeds:       [1, 2]
+    cxr_n_labels:     13
+    epochs:           50
+    batch_size:       256
+    effective_batch_size: 512
+    num_workers:      12
+    lr:               0.0001
+    weight_decay:     0.05
+    warmup_fraction:  0.1
+    ssl_method:       contrastive
+    ssl_temp:         0.1
+    clip_temp:        0.07
+    text_encoder:     emilyalsentzer/Bio_ClinicalBERT
+    bf16:             true
+    gradient_checkpointing: true
+
+  mitigation:
+    methods_all_encoders:
+      [resample, reweigh, group_dro, adversarial, reduction,
+       eo_shift, platt_recal, leace, inlp]
+    methods_image_text_only: [fairclip_ot]
+    auroc_tolerance_pts: 1.0
+    head_types: [linear, mlp]
+    lora_for_controlled: true
+    attributes: [race_grp, age_grp]
+    results_e2_dir:   "${outputs_root}/results_e2_ceiling"
+
+  mechanism:
+    results_e3_dir:        "${outputs_root}/results_e3_mechanism"
+    n_splits:              5
+    n_perm:                1000
+    run_label_permutation: false
+    label_perm_n:          100
+
+  generalization:
+    results_e4_dir:  "${outputs_root}/results_e4_generalization"
+    results_e5_dir:  "${outputs_root}/results_e5_crossmodal"
+    derm_findings:   [malignant]
+    fundus_findings: [glaucoma]
+
+  finetuning:
+    enabled:        true
+    results_e6_dir: "${outputs_root}/results_e6_finetuning"
+    encoders:       [rad_dino, dinov2_large]
+    levels:         [linear, last_block, lora, full]
+    attributes:     [race_grp, sex_grp, age_grp]
+    epochs:         10
+    batch_size:     64
+    lr_head:        1.0e-3
+    lr_backbone:    1.0e-5
+    weight_decay:   0.05
+    warmup_fraction: 0.1
+    lora_rank:      8
+    lora_alpha:     16
+    bf16:           true
+    max_train:      null
+    num_workers:    8
+    gradient_checkpointing: true
+    early_stopping:   true
+    es_min_epochs:    1
+    es_patience:      3
+    es_min_delta:     0.0005
+    es_max_val_batches: null
+
+  stats:
+    n_boot:               1000
+    n_perm:               1000
+    boot_seed:            0
+    boot_unit:            patient
+    fdr_alpha:            0.05
+    operating_sensitivity: 0.80
+    secondary_operating_point: youden
+    head_max_train: 100000
+    bootstrap_n_jobs: auto
+    claim_stale_after_s: 21600
+
+  theory:
+    results_e7_dir:  "${outputs_root}/results_e7_theory"
+    n_synthetic:     4000
+    n_signal_dims:   32
+    n_nuisance_dims: 128
+    collinearity_grid: [0.0, 0.1, 0.25, 0.5, 0.75, 1.0]
+    n_seeds:         5
+
+  acquisition:
+    results_e10_dir: "${outputs_root}/results_e10_acquisition"
+    encoders:        [rad_dino, dinov2_large]
+    attributes:      [race_grp, age_grp]
+    stratifiers:     [view]
+    technical:       [view, site]
+    drop_levels:     [unknown]
+    min_stratum_n:   500
+    min_subgroup_n:  20
+
+  gap_null:
+    results_e8_dir:  "${outputs_root}/results_e8_gapnull"
+    n_sim:           2000
+    seed:            0
+    min_subgroup_n:  20
+    min_subgroups:   2
+    method:              hanley
+    verify_exact_cells:  12
+    source_arms:     [e2, e4, e6]
+
+  published:
+    results_e11_dir:  "${outputs_root}/results_e11_published"
+    claims_csv:       "${manifests_dir}/published_claims.csv"
+    out_csv:          "${outputs_root}/results_e11_published/generalization_audit.csv"
+    n_sim:            2000
+    seed:             0
+    min_subgroups:    2
+    papers:
+      - seyyed_kalantari_2021
+      - seyyed_kalantari_2021_chexclusion
+      - glocker_2023
+      - lotter_2024
+      - yang_2024
+      - knolle_2026
+      - zong_2023_medfair
+      - daneshjou_2022
+      - larrazabal_2020
+      - vaidya_2024
+      - burlina_2021
+      - yala_2021
+      - tayebi_arasteh_2024
+      - brown_2023
+      - groh_2021
+      - kinyanjui_2020
+      - howard_2021
+      - huang_2025
+      - zhang_2022
+      - luo_2024_fairclip
+      - tayebi_arasteh_2023_domain_transfer
+      - kaess_2025
+
+  positive_control:
+    enabled:         true
+    results_e9_dir:  "${outputs_root}/results_e9_positive_control"
+    encoders:        [rad_dino, txrv_densenet]
+    modes:           [decodable_only, entangled]
+    strengths:
+      decodable_only: [0.0, 0.25, 0.5, 1.0]
+      entangled:      [0, 1, 4, 16, 64, 256]
+    findings:        [pleural_effusion, cardiomegaly, fracture]
+    attribute:       race_grp
+    methods:         [reweigh, eo_shift, leace, inlp]
