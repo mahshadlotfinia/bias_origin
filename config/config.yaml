@@ -2,8 +2,7 @@ ocean_root:    /PATH
 home_root:     /PATH
 user_home:     /PATH
 datasets_root: /PATH/datasets
-repo_root:     "${home_root}/PATH/bias_origin"
-
+repo_root:     "${home_root}/Repositories/bias_origin"
 
 xray_root:     "${datasets_root}/XRay"
 outputs_root:  "${ocean_root}/PATH/bias_origin"
@@ -14,7 +13,7 @@ BiasOrigin:
   seed: 42
   target_resolution: 224
 
-  hf_token: "hf_YOUR_TOKEN_HERE"
+  hf_token: null
 
   datasets_root: "${datasets_root}"
   xray_root:     "${xray_root}"
@@ -46,9 +45,9 @@ BiasOrigin:
 
     mimic_demographics:
       enabled:        true
-      hosp_dir:       "${xray_root}/PATH"
-      admissions_csv: "${xray_root}/PATH/admissions.csv.gz"
-      patients_csv:   "${xray_root}/PATH/patients.csv.gz"
+      hosp_dir:       "${xray_root}/MIMIC/mimiciv_demographics/hosp"
+      admissions_csv: "${xray_root}/MIMIC/mimiciv_demographics/hosp/admissions.csv.gz"
+      patients_csv:   "${xray_root}/MIMIC/mimiciv_demographics/hosp/patients.csv.gz"
       out_csv:        "${manifests_dir}/mimic_demographics.csv"
 
     sites:
@@ -70,7 +69,7 @@ BiasOrigin:
       chexpert:
         enabled:        true
         image_root:     "${xray_root}"
-        master_csv:     "${xray_root}/CheXpert-v1.0/masterlist.csv"
+        master_csv:     "${xray_root}/PATH/masterlist.csv"
         split_col:      split
         subject_id_col: subject_id
         study_id_col:   null
@@ -79,7 +78,7 @@ BiasOrigin:
         view_col:       AP_PA
         image_key_col:  jpg_rel_path
         report_col:     null
-        chexpert_plus_csv:  "${xray_root}/CheXpert-v1.0/chexpert_plus.csv"
+        chexpert_plus_csv:  "${xray_root}/PATH/chexpert_plus.csv"
         report_join_col:    jpg_rel_path
         race_col:           race
         ethnicity_col:      ethnicity
@@ -158,7 +157,7 @@ BiasOrigin:
       ddi:
         enabled:        true
         dir:            "${datasets_root}/Derm/DDI"
-        metadata_csv:   "${datasets_root}/Derm/DDI/ddi_metadata.csv"
+        metadata_csv:   "${datasets_root}/Derm/DDI/masterlist.csv"
         images_subdir:  images
         file_col:       DDI_file
         skin_tone_col:  skin_tone
@@ -169,7 +168,7 @@ BiasOrigin:
       fitz17k:
         enabled:        true
         dir:            "${datasets_root}/Derm/Fitzpatrick17k"
-        csv:            "${datasets_root}/Derm/Fitzpatrick17k/fitzpatrick17k.csv"
+        csv:            "${datasets_root}/Derm/Fitzpatrick17k/masterlist.csv"
         images_subdir:  images
         id_col:         md5hash
         fst_col:        fitzpatrick_scale
@@ -181,8 +180,8 @@ BiasOrigin:
         enabled:        true
         dir:            "${datasets_root}/Derm/ISIC2019"
         images_subdir:  ISIC_2019_Training_Input
-        groundtruth_csv: "${datasets_root}/Derm/ISIC2019/ISIC_2019_Training_GroundTruth.csv"
-        metadata_csv:    "${datasets_root}/Derm/ISIC2019/ISIC_2019_Training_Metadata.csv"
+        groundtruth_csv: "${datasets_root}/Derm/ISIC2019/masterlist.csv"
+        metadata_csv:    "${datasets_root}/Derm/ISIC2019/masterlist.csv"
         image_col:      image
         age_col:        age_approx
         sex_col:        sex
@@ -193,7 +192,7 @@ BiasOrigin:
   fundus:
     enabled:           true
     image_root:        "${datasets_root}/Fundus"
-    pool_manifest_csv: "${manifests_dir}/fundus_pool_manifest.csv"
+    pool_manifest_csv: "${manifests_dir}/masterlist.csv"
     sources:
       fairvision:
         enabled:       true

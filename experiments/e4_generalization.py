@@ -54,7 +54,7 @@ def run_e4_encoder(cfg, cfg_path, modality, encoder, out_dir, tag):
     if X.shape[0] > 0 and not np.isfinite(X).all(axis=1).any():
         raise R.MissingInput(
             f"[e4] {modality}/{encoder}: {pool} embeddings are all non-finite "
-            f"(corrupt cache); re-extract S9 before re-running E4.")
+            f"(corrupt cache); re-extract the embeddings before re-running E4.")
     findings = _present_findings(man, finding_candidates)
     if not findings:
         print(f"[e4] {modality}/{encoder}: no finding columns among {finding_candidates}.")

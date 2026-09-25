@@ -337,7 +337,7 @@ def run_e2_encoder(cfg, cfg_path, encoder, pool_csv, out_dir, attr=ATTR):
     if X.shape[0] > 0 and not np.isfinite(X).all(axis=1).any():
         raise R.MissingInput(
             f"[e2] {encoder}: cxr_pool embeddings are all non-finite (corrupt cache); "
-            f"re-extract S9 for this encoder before re-running E2.")
+            f"re-extract the embeddings of this encoder before re-running E2.")
     _print_resample_budget(X, man, attr, tag)
     remaining = [f for f in FINDINGS if f not in done]
     pbar = tqdm(remaining, desc=f"[e2] {tag}", unit="finding")

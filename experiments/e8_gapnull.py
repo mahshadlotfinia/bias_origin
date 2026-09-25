@@ -195,8 +195,8 @@ def main_e8(global_config_path: str) -> Tuple[str, str]:
     counts_csv = cfg["subgroup_counts"]["out_csv"]
     if not os.path.exists(counts_csv):
         raise R.MissingInput(
-            f"[e8] subgroup counts not found: {counts_csv}. Run S8 "
-            f"(main_build_subgroup_counts) before E8.")
+            f"[e8] subgroup counts not found: {counts_csv}. Run "
+            f"main_build_subgroup_counts before E8.")
     index = _subgroup_counts_index(counts_csv, min_n)
     print(f"[e8] subgroup-count index: {len(index)} (modality, attribute, finding) keys.")
 

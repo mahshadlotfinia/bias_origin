@@ -181,7 +181,7 @@ def run_e9_cell(cfg, cfg_path, encoder, mode, strength, out_dir, tag):
     if X0.shape[0] > 0 and not np.isfinite(X0).all(axis=1).any():
         raise R.MissingInput(
             f"[e9] {encoder}: cxr_pool embeddings are all non-finite (corrupt cache); "
-            f"re-extract S9 before re-running E9.")
+            f"re-extract the embeddings before re-running E9.")
 
     a_signed = _signed_attribute(man, attr)
     comp = f"inject:{mode}:{_dose_token(mode, strength)}"
