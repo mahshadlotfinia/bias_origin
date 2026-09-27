@@ -60,7 +60,4 @@ def main_build_derm_pool(global_config_path: str) -> str:
             f"Splits must be group-disjoint or the test set leaks.")
     os.makedirs(os.path.dirname(pool_csv), exist_ok=True)
     pool.to_csv(pool_csv, index=False)
-    print(f"\n[derm_pool] combined -> {pool_csv}  ({len(pool)} rows)")
-    for ds, grp in pool.groupby("dataset"):
-        print(f"  {ds}: {len(grp)}")
     return pool_csv
