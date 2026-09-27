@@ -33,14 +33,11 @@ def _mimic_train(pool: pd.DataFrame) -> pd.DataFrame:
 def _balance_by_race(df: pd.DataFrame, seed: int) -> pd.DataFrame:
     sub = df[df["race_grp"].notna() & (df["race_grp"].astype(str).str.lower() != "nan")].copy()
     if sub.empty:
-        print("[mixtures] no race-labeled MIMIC train rows; balanced mixture empty.")
         return sub
     counts = sub["race_grp"].value_counts()
     n = int(counts.min())
     parts = [g.sample(n=n, random_state=seed) for _, g in sub.groupby("race_grp")]
     out = pd.concat(parts, ignore_index=True)
-    print(f"[mixtures] balanced to {n}/group across {len(counts)} race groups "
-          f"-> {len(out)} rows.")
     return out.reset_index(drop=True)
 
 
@@ -64,8 +61,4 @@ def main_build_training_mixtures(global_config_path: str) -> List[str]:
     natural.to_csv(nat_csv, index=False)
     balanced.to_csv(bal_csv, index=False)
 
-    print(f"[mixtures] natural  -> {nat_csv}  ({len(natural)} rows)")
-    print(f"[mixtures] balanced -> {bal_csv}  ({len(balanced)} rows)")
-    for g, c in natural["race_grp"].value_counts(dropna=False).items():
-        print(f"    natural race_grp {g}: {c}")
     return [nat_csv, bal_csv]

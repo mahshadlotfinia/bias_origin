@@ -57,14 +57,11 @@ def run_e4_encoder(cfg, cfg_path, modality, encoder, out_dir, tag):
             f"(corrupt cache); re-extract the embeddings before re-running E4.")
     findings = _present_findings(man, finding_candidates)
     if not findings:
-        print(f"[e4] {modality}/{encoder}: no finding columns among {finding_candidates}.")
         return [], []
 
     units = [(attr, f) for attr in attrs if attr in man.columns and man[attr].notna().sum() > 0
              for f in findings]
     done, perf_rows, stat_rows = R.load_partial(out_dir, tag)
-    if done:
-        print(f"[e4] {tag}: resuming, {len(done)}/{len(units)} (attr,finding) units already done.")
     remaining = [u for u in units if f"{u[0]}::{u[1]}" not in done]
     pbar = tqdm(remaining, desc=f"[e4] {tag}", unit="unit")
     for attr, finding in pbar:
@@ -73,7 +70,6 @@ def run_e4_encoder(cfg, cfg_path, modality, encoder, out_dir, tag):
         done.add(f"{attr}::{finding}")
         R.save_partial(out_dir, tag, done, perf_rows, stat_rows)
         R.heartbeat_claim(out_dir, tag)
-    print(f"[e4] {modality} battery done: {encoder}")
     return perf_rows, stat_rows
 
 
@@ -83,20 +79,16 @@ def main_e4_encoder(modality: str, encoder: str, global_config_path: str,
     out_dir = cfg["generalization"]["results_e4_dir"]
     tag = f"{modality}__{encoder}"
     if not force and R.shard_exists(out_dir, tag):
-        print(f"[e4] shard for {tag} exists; skipping (force=True to redo).")
         return
     stale = float(cfg["stats"].get("claim_stale_after_s", 21600))
     if not force and not R.claim_unit(out_dir, tag, stale):
-        print(f"[e4] {tag} is claimed by another running job; skipping to the next.")
         return
     try:
         perf_rows, stat_rows = run_e4_encoder(cfg, global_config_path, modality, encoder, out_dir, tag)
     except R.MissingInput as e:
-        print(f"{e} SKIP (no shard written; re-runs once the input exists).")
         R.release_claim(out_dir, tag)
         return
     if not perf_rows and not stat_rows:
-        print(f"[e4] {tag}: produced no rows; not writing a shard.")
         R.release_claim(out_dir, tag)
         return
     R.write_shard(out_dir, tag, perf_rows, stat_rows)

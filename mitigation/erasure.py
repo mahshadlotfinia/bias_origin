@@ -71,26 +71,6 @@ def inlp(X_tr, g_tr, X_te, seed=0, n_iter=10, tol_acc=None, X_more=None):
     return Xtr_e, Xte_e, Xmore_e
 
 
-def rlace(X_tr, g_tr, X_te, seed=0, rank=1, n_iter=4000, X_more=None):
-    try:
-        from rlace import solve_adv_game
-    except (ImportError, ModuleNotFoundError) as e:
-        raise RuntimeError("[rlace] requires the rlace package "
-                           "(pip install git+https://github.com/shauli-ravfogel/rlace.git). "
-                           f"Import error: {e}") from e
-    import torch
-    _, gid = _onehot(g_tr)
-    out = solve_adv_game(torch.tensor(X_tr, dtype=torch.float32),
-                         torch.tensor(gid), rank=rank, device="cpu",
-                         out_iters=n_iter)
-    P = out["P"].numpy().astype(np.float64)
-    Xtr_e = (to_float64(X_tr) @ P).astype(np.float32)
-    Xte_e = (to_float64(X_te) @ P).astype(np.float32)
-    if X_more is None:
-        return Xtr_e, Xte_e
-    return Xtr_e, Xte_e, (to_float64(X_more) @ P).astype(np.float32)
-
-
 def _remap_test_labels(g_tr, g_te):
     _, gtr = _onehot(g_tr)
     levels = np.unique(np.asarray(g_tr, dtype=object).astype(str))

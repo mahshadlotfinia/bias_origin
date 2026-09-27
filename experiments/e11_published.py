@@ -47,7 +47,6 @@ def _load_audit(out_dir: str, tag: str) -> Dict[str, Dict]:
         with open(p, "rb") as f:
             return json.loads(f.read().decode("utf-8", errors="strict"))
     except Exception as e:
-        print(f"[e11] audit store unreadable ({e}); rebuilding it", flush=True)
         return {}
 
 
@@ -158,7 +157,6 @@ def run_e11(cfg, cfg_path, out_dir, tag):
     done, perf_rows, stat_rows = R.load_partial(out_dir, tag)
     audit = _load_audit(out_dir, tag)
     ids = [c for c in df["claim_id"].astype(str).unique() if c not in done]
-    print(f"[e11] {df['claim_id'].nunique()} claims, {len(ids)} to run", flush=True)
 
     for cid in tqdm(ids, desc="[e11] claims", ncols=100):
         sub = df[df["claim_id"].astype(str) == cid]
@@ -168,8 +166,6 @@ def run_e11(cfg, cfg_path, out_dir, tag):
         rec["claim_id"] = cid
         if res is None:
             rec["auditable"] = False
-            print(f"[e11] NOT AUDITABLE {cid} ({head['paper']}): "
-                  f"fewer than {min_sub} subgroups with a value and a denominator", flush=True)
         else:
             rec["auditable"] = True
             rec.update(res)
@@ -206,7 +202,6 @@ def main_e11(global_config_path: str, force: bool = False):
     os.makedirs(out_dir, exist_ok=True)
     tag = "e11_published"
     if not force and R.shard_exists(out_dir, tag):
-        print(f"[e11] shard present, skipping: {tag}", flush=True)
         return
     if force:
         for p in (_audit_path(out_dir, tag),):
@@ -215,14 +210,13 @@ def main_e11(global_config_path: str, force: bool = False):
         R.clear_partial(out_dir, tag)
     stale = float(cfg["BiasOrigin"]["stats"].get("claim_stale_after_s", 21600))
     if not force and not R.claim_unit(out_dir, tag, stale):
-        print(f"[e11] {tag} claimed by another job, skipping", flush=True)
         return
     try:
         perf_rows, stat_rows, _ = run_e11(cfg, global_config_path, out_dir, tag)
         R.write_shard(out_dir, tag, perf_rows, stat_rows)
         R.clear_partial(out_dir, tag)
     except R.MissingInput as e:
-        print(f"[e11] SKIP: {e}", flush=True)
+        pass
     finally:
         R.release_claim(out_dir, tag)
 
@@ -246,7 +240,7 @@ def main_e11_merge(global_config_path: str) -> str:
                            f"Re-run main_e11(cfg, force=True).")
 
     out = pd.DataFrame(list(audit.values()))
-    out["p_fdr"], out["significant_fdr05"] = np.nan, np.nan
+    out["p_fdr"], out["significant_fdr05"] = np.nan, pd.Series(np.nan, index=out.index, dtype=object)
     aud = out["auditable"].fillna(False).to_numpy(bool)
     for metric, idx in out[aud].groupby("metric").groups.items():
         p = out.loc[idx, "p_raw"].to_numpy(float)
@@ -264,6 +258,4 @@ def main_e11_merge(global_config_path: str) -> str:
     out = out.reindex(columns=[c for c in order if c in out.columns])
     out = out.sort_values(["auditable", "paper", "claim_id"], ascending=[False, True, True])
     R.write_frame_atomic(out, pcfg["out_csv"])
-    print(f"[e11] {int(aud.sum())} audited and {int((~aud).sum())} not auditable "
-          f"-> {pcfg['out_csv']}", flush=True)
     return pcfg["out_csv"]

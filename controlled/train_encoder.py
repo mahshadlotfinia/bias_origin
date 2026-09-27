@@ -91,15 +91,11 @@ def _load_hf_offline_first(loader_fn, hf_id: str, label: str, timeout_s: float =
     try:
         result = _with_timeout(lambda: loader_fn(hf_id, local_files_only=True),
                                timeout_s, f"offline load of {label} '{hf_id}'")
-        print(f"[hf] {label} '{hf_id}': loaded offline in {time.time()-t0:.1f}s.")
         return result
     except Exception as e:
-        print(f"[hf] offline load of {label} '{hf_id}' failed after {time.time()-t0:.1f}s "
-             f"({e}); falling back to a network-allowed load (timeout {timeout_s:.0f}s).")
         t1 = time.time()
         result = _with_timeout(lambda: loader_fn(hf_id), timeout_s,
                                f"network load of {label} '{hf_id}'")
-        print(f"[hf] {label} '{hf_id}': loaded over the network in {time.time()-t1:.1f}s.")
         return result
 
 
@@ -318,8 +314,6 @@ def _load_progress(path: str):
     try:
         return torch.load(path, map_location="cpu")
     except Exception as e:
-        print(f"[train] in-progress checkpoint at {path} could not be loaded "
-              f"({e}); starting this run from epoch 0.")
         return None
 
 
@@ -327,12 +321,8 @@ def _try_resume(prog: dict, run_id: str, tag: str, **components) -> int:
     try:
         for obj, key in components.values():
             obj.load_state_dict(prog[key])
-        print(f"[train/{tag}] resuming {run_id} from epoch {prog['epoch']}.")
         return int(prog["epoch"])
     except (RuntimeError, KeyError) as e:
-        print(f"[train/{tag}] in-progress checkpoint for {run_id} does not match "
-              f"the current model (likely written before a training-code change); "
-              f"discarding it and starting this run from epoch 0. ({e})")
         return 0
 
 
@@ -390,7 +380,6 @@ def train_ssl(model, dataset, cfg, device, run_id: str) -> nn.Module:
                 opt.step(); sched.step(); opt.zero_grad()
             running += loss.item() * accum
             pbar.set_postfix(loss=f"{running/(it+1):.4f}")
-        print(f"[train/ssl] epoch {ep+1}/{epochs} loss={running/len(dl):.4f}")
         _save_progress(ckpt_path, ep + 1, model=model.state_dict(),
                        proj=proj.state_dict(), opt=opt.state_dict(),
                        sched=sched.state_dict())
@@ -432,7 +421,6 @@ def train_supervised(model, dataset, cfg, device, run_id: str) -> nn.Module:
                 opt.step(); sched.step(); opt.zero_grad()
             running += loss.item() * accum
             pbar.set_postfix(loss=f"{running/(it+1):.4f}")
-        print(f"[train/supervised] epoch {ep+1}/{epochs} loss={running/len(dl):.4f}")
         _save_progress(ckpt_path, ep + 1, model=model.state_dict(),
                        head=head.state_dict(), opt=opt.state_dict(),
                        sched=sched.state_dict())
@@ -498,7 +486,6 @@ def train_clip(model, dataset, cfg, device, run_id: str) -> nn.Module:
             opt.step(); sched.step(); opt.zero_grad()
             running += loss.item()
             pbar.set_postfix(loss=f"{running/(it+1):.4f}")
-        print(f"[train/clip] epoch {ep+1}/{epochs} loss={running/len(dl):.4f}")
         _save_progress(ckpt_path, ep + 1, model=model.state_dict(),
                        text_model=text_model.state_dict(),
                        img_proj=img_proj.state_dict(), txt_proj=txt_proj.state_dict(),
@@ -528,7 +515,6 @@ def run_one(run_id: str, global_config_path: str) -> str:
     ckpt_dir = cfg["controlled"]["ckpts_dir"]
     out = os.path.join(ckpt_dir, f"{run_id}.pt")
     if os.path.exists(out):
-        print(f"[train] {run_id} already complete -> {out}; skipping.")
         return out
 
     meta = parse_run_id(run_id)
@@ -563,7 +549,6 @@ def run_one(run_id: str, global_config_path: str) -> str:
     torch.save({"run_id": run_id, "meta": meta,
                 "backbone_hf_id": _init_hf_id(meta["init"], cfg),
                 "state_dict": model.state_dict()}, out)
-    print(f"[train] saved {run_id} -> {out}")
 
     prog_path = _progress_ckpt_path(cfg, run_id)
     if os.path.exists(prog_path):

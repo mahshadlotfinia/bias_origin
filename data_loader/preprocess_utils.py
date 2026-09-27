@@ -37,8 +37,6 @@ def resize_tree(
     tag: str = "",
 ) -> None:
     if not raw_root or not os.path.isdir(raw_root):
-        print(f"[preprocess{tag}] raw root absent or not set ({raw_root}); "
-              f"skipping (preprocessed trees already exist).")
         return
 
     jobs: List[Tuple[str, str, str]] = []
@@ -56,10 +54,8 @@ def resize_tree(
             jobs.append((src, d224, d512))
 
     if not jobs:
-        print(f"[preprocess{tag}] nothing to do under {raw_root}.")
         return
 
-    print(f"[preprocess{tag}] resizing {len(jobs)} images under {raw_root}.")
     errors = []
     with ThreadPoolExecutor(max_workers=num_workers) as pool:
         futs = {pool.submit(_resize_one, *j): j[0] for j in jobs}
@@ -67,9 +63,6 @@ def resize_tree(
             r = fut.result()
             if r.startswith("ERROR"):
                 errors.append(r)
-    print(f"[preprocess{tag}] done. errors={len(errors)}")
-    for e in errors[:10]:
-        print(" ", e)
 
 
 def preprocess_manifest(
@@ -80,14 +73,11 @@ def preprocess_manifest(
 ) -> None:
     import pandas as pd
     if not manifest_csv or not os.path.exists(manifest_csv):
-        print(f"[preprocess{tag}] manifest not found ({manifest_csv}); skipping.")
         return
     df = pd.read_csv(manifest_csv, low_memory=False)
     needed = {"image_relpath", "image_subdir", "image_key"}
     missing_cols = needed - set(df.columns)
     if missing_cols:
-        print(f"[preprocess{tag}] manifest is missing {missing_cols}; built "
-              f"before image_relpath existed. Rebuild the pool manifest first.")
         return
 
     jobs: List[Tuple[str, str, str]] = []
@@ -113,9 +103,6 @@ def preprocess_manifest(
             continue
         jobs.append((src, d224, ""))
 
-    if n_no_original:
-        print(f"[preprocess{tag}] {n_no_original} rows had no usable "
-              f"image_relpath/image_subdir/image_key; skipped.")
     for label, bad in (("are their own cache entry and it is missing on this "
                         "machine (this source ships as the preprocessed tree, so "
                         "there is no original to resize from)", self_ref),
@@ -123,17 +110,9 @@ def preprocess_manifest(
                         missing_src)):
         if not bad:
             continue
-        print(f"[preprocess{tag}] WARNING: {len(bad)} rows {label}. These images "
-              f"cannot be read here, so extraction over this pool WILL fail on "
-              f"them. Rebuild the pool manifest on THIS machine, or copy the "
-              f"missing files. Examples:")
-        for p in bad[:5]:
-            print(f"    {p}")
     if not jobs:
-        print(f"[preprocess{tag}] nothing to do for {os.path.basename(manifest_csv)}.")
         return
 
-    print(f"[preprocess{tag}] caching {len(jobs)} images (224px) from {os.path.basename(manifest_csv)}.")
     errors = []
     with ThreadPoolExecutor(max_workers=num_workers) as pool:
         futs = {pool.submit(_resize_one, *j): j[0] for j in jobs}
@@ -141,6 +120,3 @@ def preprocess_manifest(
             r = fut.result()
             if r.startswith("ERROR"):
                 errors.append(r)
-    print(f"[preprocess{tag}] done. errors={len(errors)}")
-    for e in errors[:10]:
-        print(" ", e)

@@ -7,7 +7,7 @@ https://github.com/mahshadlotfinia
 """
 
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -17,8 +17,7 @@ from tqdm import tqdm
 
 from config.serde import read_config
 from analysis.embedding_io import load_encoder_pool_frame
-from analysis.heads import fit_head, fit_standardizer, score_head, to_float64
-from analysis.fairness_metrics import as_group_strings, auroc, subgroup_auroc
+from analysis.heads import fit_standardizer, to_float64
 from Inference.stats_utils import spearman_with_perm
 from Inference import report_utils as R
 from experiments.e2_ceiling import _masks, run_encoder_finding
@@ -171,8 +170,6 @@ def run_e9_cell(cfg, cfg_path, encoder, mode, strength, out_dir, tag):
     seed = int(cfg["stats"]["boot_seed"])
 
     done, perf_rows, stat_rows = R.load_partial(out_dir, tag)
-    if done:
-        print(f"[e9] {tag}: resuming, {len(done)}/{len(findings)} findings done.")
     pool_csv = cfg["cxr"]["pool_manifest_csv"]
     try:
         X0, man = load_encoder_pool_frame(cfg_path, encoder, "cxr_pool", pool_csv)
@@ -191,7 +188,6 @@ def run_e9_cell(cfg, cfg_path, encoder, mode, strength, out_dir, tag):
         direction, sigma = build_injection(X0, man, finding, attr, mode, seed,
                                            k=strength)
         if direction is None:
-            print(f"[e9] {tag}/{finding}: not evaluable (too few usable rows); skipping.")
             done.add(finding)
             R.save_partial(out_dir, tag, done, perf_rows, stat_rows)
             continue
@@ -210,7 +206,6 @@ def run_e9_cell(cfg, cfg_path, encoder, mode, strength, out_dir, tag):
         done.add(finding)
         R.save_partial(out_dir, tag, done, perf_rows, stat_rows)
         R.heartbeat_claim(out_dir, tag)
-    print(f"[e9] cell done: {tag}")
     return perf_rows, stat_rows
 
 
@@ -219,7 +214,6 @@ def main_e9_cell(encoder: str, mode: str, strength: float,
     cfg = read_config(global_config_path)["BiasOrigin"]
     pc = cfg["positive_control"]
     if not pc.get("enabled", True):
-        print("[e9] positive control disabled in config; skipping.")
         return
     if mode not in MODES:
         raise ValueError(f"[e9] unknown mode '{mode}'; expected one of {MODES}.")
@@ -227,21 +221,17 @@ def main_e9_cell(encoder: str, mode: str, strength: float,
     out_dir = pc["results_e9_dir"]
     tag = f"{encoder}__{mode}__{_dose_token(mode, strength)}"
     if not force and R.shard_exists(out_dir, tag):
-        print(f"[e9] shard for {tag} exists; skipping (force=True to redo).")
         return
     stale = float(cfg["stats"].get("claim_stale_after_s", 21600))
     if not force and not R.claim_unit(out_dir, tag, stale):
-        print(f"[e9] {tag} is claimed by another running job; skipping to the next.")
         return
     try:
         perf_rows, stat_rows = run_e9_cell(cfg, global_config_path, encoder, mode,
                                            float(strength), out_dir, tag)
     except R.MissingInput as e:
-        print(f"{e} SKIP (no shard written; re-runs once the input exists).")
         R.release_claim(out_dir, tag)
         return
     if not perf_rows and not stat_rows:
-        print(f"[e9] {tag}: produced no rows; not writing a shard.")
         R.release_claim(out_dir, tag)
         return
     R.write_shard(out_dir, tag, perf_rows, stat_rows)
@@ -310,67 +300,10 @@ def strengths_for(cfg, mode: str) -> List[float]:
     return [float(v) for v in s]
 
 
-def main_e9_probe(encoder: str, global_config_path: str, mode: str = "entangled",
-                  finding: Optional[str] = None):
-    cfg = read_config(global_config_path)["BiasOrigin"]
-    pc = cfg["positive_control"]
-    attr = pc.get("attribute", "race_grp")
-    finding = finding or list(pc["findings"])[0]
-    seed = int(cfg["stats"]["boot_seed"])
-    cap = cfg["stats"].get("head_max_train", None)
-    doses = [_check_dose(mode, s) for s in strengths_for(cfg, mode)]
-    if not doses:
-        print(f"[e9 probe] no dose grid configured for mode '{mode}'.")
-        return
-
-    X0, man = load_encoder_pool_frame(global_config_path, encoder, "cxr_pool",
-                                      cfg["cxr"]["pool_manifest_csv"])
-    M = _masks(X0, man, finding, attr)
-    if M is None:
-        print(f"[e9 probe] {encoder}/{finding}: not evaluable.")
-        return
-    a_signed = _signed_attribute(man, attr)
-    y, tr, te = M["y"], M["tr"], M["te"]
-    tr_ok = tr[np.isfinite(y[tr])]
-    if cap:
-        rng = np.random.RandomState(seed)
-        if len(tr_ok) > int(cap):
-            tr_ok = np.sort(rng.choice(tr_ok, int(cap), replace=False))
-    te_ok = te[np.isfinite(y[te])]
-    minor_te = a_signed[te_ok] < 0
-    major_te = a_signed[te_ok] > 0
-    sigma = float(np.mean(np.std(X0[np.isfinite(X0).all(axis=1)], axis=0)))
-
-    print(f"[e9 probe] {encoder} / {finding} / {attr} / mode={mode}: "
-          f"{len(tr_ok)} train rows, {int(major_te.sum())} majority and "
-          f"{int(minor_te.sum())} minority test rows.")
-    if mode == "entangled":
-        basis = _disease_subspace(X0, y, tr, seed, int(max(doses)))
-        print(f"[e9 probe] disease subspace built at k={basis.shape[1]} "
-              f"of {X0.shape[1]} dimensions.")
-    else:
-        basis, _ = build_injection(X0, man, finding, attr, mode, seed)
-    print(f"{'dose':>8}  {'majority':>9}  {'minority':>9}  {'overall':>8}  {'gap':>7}")
-    for d in doses:
-        direction = basis[:, :int(d)] if mode == "entangled" else basis
-        X = inject(X0, a_signed, direction, float(d), sigma, mode)
-        model, sc = fit_head("linear", X[tr_ok], y[tr_ok])
-        p = score_head(model, sc, X[te_ok])
-        a_maj = auroc(y[te_ok][major_te], p[major_te])
-        a_min = auroc(y[te_ok][minor_te], p[minor_te])
-        sub = subgroup_auroc(y[te_ok], p, as_group_strings(man[attr].values[te_ok]))
-        vals = [v for v in sub.values() if np.isfinite(v)]
-        gap = (max(vals) - min(vals)) if len(vals) > 1 else float("nan")
-        print(f"{d:>8.2f}  {100*a_maj:>9.2f}  {100*a_min:>9.2f}  "
-              f"{100*auroc(y[te_ok], p):>8.2f}  {100*gap:>7.2f}")
-        del X
-
-
 def main_e9(global_config_path: str) -> Tuple[str, str]:
     cfg = read_config(global_config_path)["BiasOrigin"]
     pc = cfg["positive_control"]
     if not pc.get("enabled", True):
-        print("[e9] positive control disabled in config; skipping.")
         return "", ""
     for encoder in pc["encoders"]:
         for mode in pc["modes"]:

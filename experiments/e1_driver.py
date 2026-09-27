@@ -26,7 +26,7 @@ from analysis.embedding_io import load_embeddings, join_with_manifest
 from analysis.heads import run_head_per_finding
 from analysis.fairness_metrics import compute_fairness_point
 from Inference.stats_utils import (
-    cluster_bootstrap, cluster_bootstrap_paired_diff, friedman_test, resolve_n_jobs,
+    cluster_bootstrap, cluster_bootstrap_paired_diff, resolve_n_jobs,
 )
 from Inference import report_utils as R
 from controlled.train_encoder import (
@@ -79,8 +79,6 @@ def _load_partial_embed(path: str):
         d = np.load(path, allow_pickle=True)
         return d["embeddings"], d["case_ids"]
     except Exception as e:
-        print(f"[e1] partial embedding cache at {path} unreadable ({e}); "
-              f"restarting this run's embedding pass from row 0.")
         return None
 
 
@@ -119,32 +117,25 @@ def embed_run(run_id: str, cfg: dict, cfg_path: str, device: str) -> Optional[Tu
     pool_csv = cfg["cxr"]["pool_manifest_csv"]
 
     if os.path.exists(npz):
-        print(f"[e1] {run_id}: found cached embeddings, checking completeness...")
         _write_status(cfg, f"{run_id}: checking cached embeddings")
         from data_loader.build_utils import read_csv_defensively
         man = read_csv_defensively(pool_csv)
         emb, ids = load_embeddings(npz)
         if emb.shape[0] == len(man):
-            print(f"[e1] {run_id}: cache complete ({emb.shape[0]} rows), reusing it.")
             _write_status(cfg, f"{run_id}: cache complete, reused")
             return join_with_manifest(emb, ids, man)
-        print(f"[e1] {run_id}: cache incomplete ({emb.shape[0]}/{len(man)} rows); "
-             f"re-embedding.")
         _write_status(cfg, f"{run_id}: cache incomplete ({emb.shape[0]}/{len(man)}), re-embedding")
 
-    print(f"[e1] {run_id}: loading checkpoint...")
     _write_status(cfg, f"{run_id}: loading checkpoint")
     ckpt = torch.load(ckpt_path, map_location="cpu")
     hf_id = ckpt.get("backbone_hf_id")
     if hf_id:
-        print(f"[e1] {run_id}: loading backbone '{hf_id}' (offline, from local cache)...")
         _write_status(cfg, f"{run_id}: loading backbone {hf_id}")
         model = _load_hf_backbone(hf_id, cfg.get("hf_token"), device)
         model.load_state_dict(ckpt["state_dict"], strict=False)
         model = model.to(device).eval()
         transform = eval_transform(int(cfg.get("target_resolution", 224)))
     else:
-        print(f"[e1] {run_id}: loading legacy timm backbone '{ckpt['backbone_arch']}'...")
         _write_status(cfg, f"{run_id}: loading legacy timm backbone {ckpt['backbone_arch']}")
         import timm
         from timm.data import resolve_data_config, create_transform
@@ -152,10 +143,8 @@ def embed_run(run_id: str, cfg: dict, cfg_path: str, device: str) -> Optional[Tu
         model.load_state_dict(ckpt["state_dict"], strict=False)
         model = model.to(device).eval()
         transform = create_transform(**resolve_data_config({}, model=model))
-    print(f"[e1] {run_id}: backbone loaded.")
     _write_status(cfg, f"{run_id}: backbone loaded")
 
-    print(f"[e1] {run_id}: reading pool manifest and building the dataset...")
     _write_status(cfg, f"{run_id}: building dataset")
     ds_inner = CXREmbeddingDataset(cfg_path, pool_csv, resolution=int(cfg.get("target_resolution", 224)))
     ds = _TransformedCXR(ds_inner, transform)
@@ -171,12 +160,9 @@ def embed_run(run_id: str, cfg: dict, cfg_path: str, device: str) -> Optional[Tu
             all_emb.append(pe.astype(np.float32))
             all_ids.extend(list(pi))
             n_done = pe.shape[0]
-            print(f"[e1] resuming {run_id} embedding from row {n_done}/{len(ds)} "
-                 f"(partial cache found).")
 
     remaining = Subset(ds, list(range(n_done, len(ds)))) if n_done < len(ds) else None
     if remaining is not None and len(remaining) > 0:
-        print(f"[e1] {run_id}: starting embedding loop over {len(remaining)} rows...")
         _write_status(cfg, f"{run_id}: embedding {len(remaining)} rows")
         dl = DataLoader(remaining, batch_size=int(cfg["embeddings"].get("batch_size", 64)),
                         shuffle=False, num_workers=int(cfg["embeddings"].get("num_workers", 8)),
@@ -200,7 +186,6 @@ def embed_run(run_id: str, cfg: dict, cfg_path: str, device: str) -> Optional[Tu
     np.savez_compressed(npz, embeddings=emb, case_ids=np.array(all_ids, dtype=object))
     if os.path.exists(part_path):
         os.remove(part_path)
-    print(f"[e1] embedded {run_id}: {emb.shape} -> {npz}")
     _write_status(cfg, f"{run_id}: embedding complete, {emb.shape[0]} rows -> {npz}")
     return join_with_manifest(emb, np.array(all_ids), man)
 
@@ -325,16 +310,11 @@ def main_e1(global_config_path: str) -> Tuple[str, str]:
     done, perf_rows, stat_rows = R.load_partial(out_dir, "e1_main")
     if done:
         n_readout_done = sum(1 for d in done if d.startswith("readout::"))
-        print(f"[e1] resuming: {n_readout_done}/{len(runs)} run readouts already done, "
-             f"{len(perf_rows)} perf rows and {len(stat_rows)} stat rows recovered.")
 
     n_cached = sum(1 for r in runs if os.path.exists(
         os.path.join(cfg["embeddings"]["output_dir"], "controlled", r, "cxr_pool.npz")))
     n_trained = sum(1 for r in runs if os.path.exists(
         os.path.join(cfg["controlled"]["ckpts_dir"], f"{r}.pt")))
-    print(f"[e1] {len(runs)} controlled runs total: {n_trained} trained, "
-         f"{n_cached} with a cached embedding, {n_trained - n_cached} still to embed. "
-         f"Runs with no trained checkpoint are skipped (return None).")
 
     remaining_runs = [r for r in runs if f"readout::{r}" not in done]
     for run_id in tqdm(remaining_runs, desc="[e1] readout", unit="run",
@@ -374,12 +354,8 @@ def main_e1(global_config_path: str) -> Tuple[str, str]:
                 R.save_partial(out_dir, "e1_main", done, perf_rows, stat_rows)
         done.add(f"readout::{run_id}")
         R.save_partial(out_dir, "e1_main", done, perf_rows, stat_rows)
-        print(f"[e1] readout done: {run_id}")
 
-    if "objective_contrast::done" in done:
-        print("[e1] phase: objective contrasts already done; skipping.")
-    else:
-        print("[e1] phase: objective contrasts...")
+    if "objective_contrast::done" not in done:
         head_type = head_types[0]
         by_group: Dict[Tuple, Dict[str, str]] = {}
         for run_id in runs:
@@ -403,10 +379,7 @@ def main_e1(global_config_path: str) -> Tuple[str, str]:
         R.save_partial(out_dir, "e1_main", done, perf_rows, stat_rows)
     head_type = head_types[0]
 
-    if "data_comp_contrast::done" in done:
-        print("[e1] phase: data-composition contrasts already done; skipping.")
-    else:
-        print("[e1] phase: data-composition contrasts...")
+    if "data_comp_contrast::done" not in done:
         for run_id in tqdm(runs, desc="[e1] data-comp contrast", unit="run"):
             m = parse_run_id(run_id)
             if m["data_comp"] != "natural":
@@ -429,10 +402,7 @@ def main_e1(global_config_path: str) -> Tuple[str, str]:
         done.add("data_comp_contrast::done")
         R.save_partial(out_dir, "e1_main", done, perf_rows, stat_rows)
 
-    if "scrubbed_contrast::done" in done:
-        print("[e1] phase: scrubbed contrasts already done; skipping.")
-    else:
-        print("[e1] phase: scrubbed contrasts...")
+    if "scrubbed_contrast::done" not in done:
         for run_id in tqdm(runs, desc="[e1] scrubbed contrast", unit="run"):
             m = parse_run_id(run_id)
             if m["objective"] != "image_text" or m["data_comp"] != "natural":
@@ -455,10 +425,7 @@ def main_e1(global_config_path: str) -> Tuple[str, str]:
         done.add("scrubbed_contrast::done")
         R.save_partial(out_dir, "e1_main", done, perf_rows, stat_rows)
 
-    if "amplified_contrast::done" in done:
-        print("[e1] phase: amplified contrasts already done; skipping.")
-    else:
-        print("[e1] phase: amplified contrasts (positive control)...")
+    if "amplified_contrast::done" not in done:
         for run_id in tqdm(runs, desc="[e1] amplified contrast", unit="run"):
             m = parse_run_id(run_id)
             if m["objective"] != "image_text" or m["data_comp"] != "natural":
@@ -482,41 +449,6 @@ def main_e1(global_config_path: str) -> Tuple[str, str]:
         done.add("amplified_contrast::done")
         R.save_partial(out_dir, "e1_main", done, perf_rows, stat_rows)
 
-    if "friedman::done" in done:
-        print("[e1] phase: seed-variance Friedman test already done; skipping.")
-    else:
-        print("[e1] phase: seed-variance Friedman test...")
-        sv = cfg["controlled"]["seed_variance"]
-        bk, dc = sv["backbone"], sv["data_comp"]
-        seeds = [0] + list(sv["seeds"])
-        objs = sv["objectives"]
-        for attr in CONTRAST_ATTRS:
-            for finding in tqdm(FINDINGS, desc=f"[e1] friedman {attr}", unit="finding"):
-                per_obj_gaps = {}
-                for obj in objs:
-                    gaps = []
-                    for sd in seeds:
-                        init = cfg["controlled"]["inits"][bk]
-                        rid = f"cxr__{obj}__{bk}__{init}__{dc}__seed{sd}"
-                        ro = get_readout(rid, head_type)
-                        if ro is None:
-                            gaps.append(np.nan); continue
-                        man, pf = ro
-                        ff = finding_frame(man, pf, finding, attr)
-                        gaps.append(_panel(ff[0], ff[1])["auroc_gap"] if ff else np.nan)
-                    per_obj_gaps[obj] = gaps
-                cols = [np.asarray(per_obj_gaps[o], float) for o in objs]
-                if all(np.isfinite(c).sum() >= 3 for c in cols):
-                    stat, p = friedman_test(*cols)
-                    ctx = {"experiment": "e1", "modality": "cxr", "dataset": "cxr_pool",
-                           "encoder_objective": "objective_factor", "backbone": bk,
-                           "data_composition": dc, "head_type": head_type,
-                           "attribute": attr, "finding": finding, "mitigation": "none"}
-                    R.report_friedman(stat_rows, ctx, stat, p,
-                                      fdr_family=f"e1_seed_variance_friedman::{attr}",
-                                      n_units=len(seeds))
-        done.add("friedman::done")
-        R.save_partial(out_dir, "e1_main", done, perf_rows, stat_rows)
 
     R.add_fdr(stat_rows, alpha=float(cfg["stats"]["fdr_alpha"]))
     os.makedirs(out_dir, exist_ok=True)
@@ -525,6 +457,4 @@ def main_e1(global_config_path: str) -> Tuple[str, str]:
     R.write_frame_atomic(R.perf_frame(perf_rows), perf_csv)
     R.write_frame_atomic(R.stat_frame(stat_rows), stat_csv)
     R.clear_partial(out_dir, "e1_main")
-    print(f"\n[e1] performance rows: {len(perf_rows)} -> {perf_csv}")
-    print(f"[e1] statistics rows:  {len(stat_rows)} -> {stat_csv}")
     return perf_csv, stat_csv

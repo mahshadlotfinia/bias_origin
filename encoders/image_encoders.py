@@ -128,8 +128,6 @@ def _load_flair(hf_id, device, dtype, spec):
     try:
         model = FLAIRModel.from_pretrained(repo)
     except Exception as e:
-        print(f"[flair] from_pretrained('{repo}') failed ({e}); falling back to "
-              f"from_checkpoint=True (the package's own internal download).")
         model = FLAIRModel(from_checkpoint=True)
     try:
         model.to(device)
@@ -162,9 +160,6 @@ def _emb_clip_hf(payload, images, device, dtype):
         if isinstance(emb, torch.Tensor):
             model._clip_hf_needs_full_forward = False
             return emb
-        print(f"[clip_hf] get_image_features() returned {type(emb).__name__}, not "
-              f"a tensor (known transformers>=5.0 regression); switching to the "
-              f"full forward pass's image_embeds field for this model.")
         model._clip_hf_needs_full_forward = True
 
     if "input_ids" not in inputs:
@@ -299,9 +294,6 @@ def extract_image_embeddings(
     if cur is not None and cur != torch.float32 and not np.isfinite(out).all():
         for wider in _wider_dtypes(cur, device):
             n_bad = int((~np.isfinite(out).all(axis=1)).sum())
-            print(f"[image_encoders] '{model_name}': {n_bad}/{out.shape[0]} non-finite "
-                  f"embeddings with weights in {cur}; promoting this encoder's weights "
-                  f"to {wider} and retrying.")
             module.to(dtype=wider)
             setattr(module, _FORCED_DTYPE_ATTR, wider)
             cur = wider

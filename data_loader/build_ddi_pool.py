@@ -42,7 +42,6 @@ def main_build_ddi_pool(global_config_path: str) -> str:
     dcfg = cfg["derm"]
     scfg = dcfg["sources"]["ddi"]
     if not scfg.get("enabled", True):
-        print("[ddi] disabled; skipping.")
         return dcfg["pool_manifest_csv"]
 
     meta_csv = scfg["metadata_csv"]
@@ -77,8 +76,6 @@ def main_build_ddi_pool(global_config_path: str) -> str:
             "fst_grp": collapse_fst_from_ddi_code(r.get(scfg["skin_tone_col"])),
             "monk_grp": np.nan, "race_grp": np.nan,
         })
-    if n_missing:
-        print(f"[ddi] {n_missing} images not found on disk; skipped.")
     if not rows:
         raise RuntimeError("[ddi] no rows produced; check image paths.")
 
@@ -99,7 +96,4 @@ def main_build_ddi_pool(global_config_path: str) -> str:
     os.makedirs(os.path.dirname(pool_csv), exist_ok=True)
     ddi_csv = pool_csv.replace(".csv", "_ddi.csv")
     out.to_csv(ddi_csv, index=False)
-    print(f"[ddi] {len(out)} rows -> {ddi_csv}")
-    for g, n in out["fst_grp"].value_counts(dropna=False).items():
-        print(f"    fst_grp {g}: {n}")
     return ddi_csv

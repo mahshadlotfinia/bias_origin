@@ -60,7 +60,6 @@ def _decode_labels(site: str, df: pd.DataFrame, mapping: Dict[str, str],
 def _load_site(site: str, scfg: dict, drop_lateral: bool) -> pd.DataFrame:
     master = scfg["master_csv"]
     if not os.path.exists(master):
-        print(f"[build_cxr_pool] {site}: master not found ({master}); skipping site.")
         return pd.DataFrame()
 
     id_like_cols = ["subject_id_col", "study_id_col", "image_key_col", "image_subdir_col"]
@@ -70,7 +69,6 @@ def _load_site(site: str, scfg: dict, drop_lateral: bool) -> pd.DataFrame:
 
     key_col = scfg.get("image_key_col")
     if not key_col or key_col not in df.columns:
-        print(f"[build_cxr_pool] {site}: image_key_col '{key_col}' missing; skipping site.")
         return pd.DataFrame()
 
     view_col = scfg.get("view_col")
@@ -85,7 +83,6 @@ def _load_site(site: str, scfg: dict, drop_lateral: bool) -> pd.DataFrame:
         df["_view_harm"] = "UNKNOWN"
 
     if df.empty:
-        print(f"[build_cxr_pool] {site}: no rows after frontal filter.")
         return pd.DataFrame()
 
     out = pd.DataFrame(index=df.index)
@@ -120,8 +117,6 @@ def _load_site(site: str, scfg: dict, drop_lateral: bool) -> pd.DataFrame:
     n_missing = int(missing.sum())
     if n_missing:
         out["subject_id"] = np.where(missing, out["case_id"], sid.astype(object))
-        print(f"[cxr_pool] {site}: {n_missing} rows have no patient id; using case_id "
-              f"as the bootstrap cluster (one image per cluster).")
 
     canon = _decode_labels(site, df, LABEL_MAPS[site], CANONICAL_CXR_FINDINGS)
     out = pd.concat([out, canon], axis=1)
@@ -144,11 +139,9 @@ def _load_site(site: str, scfg: dict, drop_lateral: bool) -> pd.DataFrame:
                                         scfg.get("insurance_col"): "insurance"})
             out = out.drop(columns=["race", "ethnicity", "insurance"], errors="ignore").merge(
                 plus[["image_key", "race", "ethnicity", "insurance"]], on="image_key", how="left")
-            print(f"[build_cxr_pool] chexpert: merged CheXpert Plus race/insurance.")
         except Exception as e:
-            print(f"[build_cxr_pool] chexpert: CheXpert Plus merge skipped ({e}).")
+            pass
 
-    print(f"[build_cxr_pool] {site}: {len(out)}/{n0} rows after frontal filter.")
     return out
 
 
@@ -162,9 +155,6 @@ def _verify_exists(df: pd.DataFrame, res: int) -> pd.DataFrame:
         keep_mask.append(ok)
         if not ok:
             n_by_site_missing[row.site] = n_by_site_missing.get(row.site, 0) + 1
-    if any(n_by_site_missing.values()):
-        for s, n in n_by_site_missing.items():
-            print(f"[build_cxr_pool] {s}: {n} rows dropped (preprocessed image not found).")
     return df[pd.Series(keep_mask, index=df.index)].copy()
 
 
@@ -205,10 +195,6 @@ def main_build_cxr_pool(global_config_path: str) -> str:
         mimic_part = mimic_part.drop(columns=["race", "insurance", "language", "marital_status"], errors="ignore")
         mimic_part = mimic_part.merge(demo, on="subject_id", how="left")
         pool = pd.concat([mimic_part, pool[~is_mimic]], ignore_index=True)
-        print(f"[build_cxr_pool] merged MIMIC-IV demographics for {is_mimic.sum()} MIMIC rows.")
-    else:
-        print(f"[build_cxr_pool] MIMIC-IV demographics CSV not found ({demo_csv}); "
-              f"MIMIC race/insurance will be NaN. Run build_mimic_demographics first.")
 
     pool = attach_cxr_sensitive(pool, sens)
 
@@ -223,10 +209,6 @@ def main_build_cxr_pool(global_config_path: str) -> str:
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)
     pool.to_csv(out_csv, index=False)
 
-    print(f"\n[build_cxr_pool] pool -> {out_csv}  ({len(pool)} rows)")
-    for s, grp in pool.groupby("site"):
-        print(f"  {s}: {len(grp)}")
     for col in CXR_SENSITIVE_COLS:
         n_known = pool[col].notna().sum()
-        print(f"  {col}: {n_known} non-missing")
     return out_csv

@@ -277,9 +277,6 @@ def _train(model, head, ds_train, cfg, device, level, lora_modules, tag,
     min_epochs = int(ft.get("es_min_epochs", 1))
     patience = int(ft.get("es_patience", 3))
     min_delta = float(ft.get("es_min_delta", 0.0005))
-    print(f"[e6] training level={level}: {n_trainable:,} trainable params, "
-          f"{len(ds_train)} train images, {epochs} epochs"
-          f"{f', early stopping on val AUROC (patience {patience})' if es else ''}.")
 
     ckpt_path = _e6_progress_path(cfg, tag)
     prog = _load_progress(ckpt_path)
@@ -296,12 +293,7 @@ def _train(model, head, ds_train, cfg, device, level, lora_modules, tag,
                          "epoch": int(b.get("epoch", 0)),
                          "model": b.get("model"), "head": b.get("head")})
             already_stopped = bool(prog.get("stopped", False))
-            print(f"[e6] {tag}: resumed early-stopping state, best val AUROC "
-                  f"{best['auroc']:.4f} at epoch {best['epoch']}"
-                  f"{', training already stopped' if already_stopped else ''}.")
     if already_stopped:
-        print(f"[e6] {tag}: training was already complete; skipping straight to "
-              f"the selected epoch.")
         start_epoch = epochs
 
     for ep in range(start_epoch, epochs):
@@ -333,12 +325,7 @@ def _train(model, head, ds_train, cfg, device, level, lora_modules, tag,
                         "head": {k: v.detach().cpu().clone()
                                  for k, v in head.state_dict().items()}}
             since = (ep + 1) - best["epoch"]
-            print(f"[e6]   epoch {ep+1}/{epochs} loss={train_loss:.4f} "
-                  f"val_auroc={va:.4f} best={best['auroc']:.4f}@ep{best['epoch']}"
-                  f"{' *' if improved else f' (no gain for {since})'}")
             stop = (ep + 1) >= min_epochs and since >= patience
-        else:
-            print(f"[e6]   epoch {ep+1}/{epochs} loss={train_loss:.4f}")
 
         _save_progress(ckpt_path, ep + 1, model=model.state_dict(),
                        head=head.state_dict(), opt=opt.state_dict(),
@@ -346,15 +333,11 @@ def _train(model, head, ds_train, cfg, device, level, lora_modules, tag,
                        stopped=bool(stop or (ep + 1) >= epochs))
         R.heartbeat_claim(ft["results_e6_dir"], tag)
         if stop:
-            print(f"[e6] {tag}: early stop at epoch {ep+1}; no val-AUROC gain "
-                  f"for {patience} epochs.")
             break
 
     if es and best["model"] is not None:
         model.load_state_dict({k: v.to(device) for k, v in best["model"].items()})
         head.load_state_dict({k: v.to(device) for k, v in best["head"].items()})
-        print(f"[e6] {tag}: restored epoch {best['epoch']} "
-              f"(val AUROC {best['auroc']:.4f}) for inference.")
     return model, head
 
 
@@ -499,23 +482,19 @@ def main_e6_cell(encoder: str, level: str, global_config_path: str,
     cfg = read_config(global_config_path)["BiasOrigin"]
     ft = cfg["finetuning"]
     if not ft.get("enabled", True):
-        print("[e6] finetuning disabled in config; skipping.")
         return
     out_dir = ft["results_e6_dir"]
     tag = f"{encoder}__{level}"
     if not force and R.shard_exists(out_dir, tag):
-        print(f"[e6] shard for {tag} exists; skipping (force=True to redo).")
         return
     stale = float(cfg["stats"].get("claim_stale_after_s", 21600))
     if not force and not R.claim_unit(out_dir, tag, stale):
-        print(f"[e6] {tag} is claimed by another running job; skipping to the next.")
         return
     device = "cuda" if torch.cuda.is_available() else "cpu"
     man = read_csv_defensively(cfg["cxr"]["pool_manifest_csv"])
     try:
         _, transform, embed_dim = _build_backbone(encoder, cfg)
     except RuntimeError as e:
-        print(f"{e} Skipping.")
         R.release_claim(out_dir, tag)
         return
     findings, va_rid, va_probs, te_rid, te_probs = run_finetuning_cell(
@@ -524,7 +503,6 @@ def main_e6_cell(encoder: str, level: str, global_config_path: str,
     _eval_level(perf_rows, encoder, level, man, findings,
                 va_rid, va_probs, te_rid, te_probs, cfg)
     if not perf_rows:
-        print(f"[e6] {tag}: produced no rows; not writing a shard.")
         R.release_claim(out_dir, tag)
         return
     R.write_shard(out_dir, tag, perf_rows, [])
@@ -532,7 +510,6 @@ def main_e6_cell(encoder: str, level: str, global_config_path: str,
     if os.path.exists(ckpt_path):
         os.remove(ckpt_path)
     R.release_claim(out_dir, tag)
-    print(f"[e6] {encoder} level={level} done.")
 
 
 def main_e6_merge(global_config_path: str) -> Tuple[str, str]:
@@ -546,7 +523,6 @@ def main_e6(global_config_path: str) -> Tuple[str, str]:
     cfg = read_config(global_config_path)["BiasOrigin"]
     ft = cfg["finetuning"]
     if not ft.get("enabled", True):
-        print("[e6] finetuning disabled in config; skipping.")
         return "", ""
     for encoder in ft["encoders"]:
         for level in ft["levels"]:

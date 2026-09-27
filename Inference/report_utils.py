@@ -172,21 +172,11 @@ def report_wilcoxon(stat_rows, context, statistic, p_raw, fdr_family, n_units=0)
                                     p_raw, fdr_family, context, n_units))
 
 
-def report_friedman(stat_rows, context, statistic, p_raw, fdr_family, n_units=0):
-    stat_rows.append(pack_statistic(statistic, "friedman_chi2", "friedman",
-                                    p_raw, fdr_family, context, n_units))
-
-
 def add_fdr(stat_rows: List[Dict], alpha: float = 0.05) -> List[Dict]:
     if not stat_rows:
         return stat_rows
     df = pd.DataFrame(stat_rows)
     n_missing_family = df["fdr_family"].isna().sum()
-    if n_missing_family:
-        print(f"[report_utils] WARNING: {n_missing_family} statistic row(s) have no "
-              f"fdr_family set. pandas groupby silently excludes these from FDR "
-              f"correction, so their p_fdr will stay NaN. This indicates a caller "
-              f"forgot to pass fdr_family; every report_* call must supply one.")
     df["p_fdr"] = np.nan
     for fam, grp in df.groupby("fdr_family"):
         idx = grp.index.values
@@ -216,7 +206,6 @@ def write_shard(out_dir: str, tag: str, perf_rows: List[Dict],
     os.makedirs(sd, exist_ok=True)
     perf_frame(perf_rows).to_csv(os.path.join(sd, f"perf__{tag}.csv"), index=False)
     stat_frame(stat_rows).to_csv(os.path.join(sd, f"stat__{tag}.csv"), index=False)
-    print(f"[shard] wrote {tag}: {len(perf_rows)} perf, {len(stat_rows)} stat rows.")
 
 
 def shard_exists(out_dir: str, tag: str) -> bool:
@@ -236,7 +225,7 @@ def _read_shard_kind(out_dir: str, kind: str) -> pd.DataFrame:
             try:
                 frames.append(pd.read_csv(p, float_precision="round_trip"))
             except Exception as e:
-                print(f"[shard] could not read {p}: {e}")
+                pass
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
@@ -258,10 +247,6 @@ def merge_shards(out_dir: str, experiment: str, alpha: float,
                 else stat_frame([]))
     write_frame_atomic(perf_out, perf_csv)
     write_frame_atomic(stat_out, stat_csv)
-    print(f"[merge/{experiment}] {len(perf)} perf, {len(stat_recs)} stat rows "
-          f"from {len(os.listdir(_shards_dir(out_dir)))} shard files.")
-    print(f"[merge/{experiment}] -> {perf_csv}")
-    print(f"[merge/{experiment}] -> {stat_csv}")
     return perf_csv, stat_csv
 
 
@@ -278,8 +263,6 @@ def load_partial(out_dir: str, tag: str):
             d = json.load(f)
         return set(d["done_units"]), d["perf_rows"], d["stat_rows"]
     except Exception as e:
-        print(f"[partial] in-progress save at {path} unreadable ({e}); "
-              f"restarting {tag} from the beginning.")
         return set(), [], []
 
 

@@ -54,7 +54,6 @@ def _part1_fairclip_ot(perf_rows, stat_rows, cfg, cfg_path, out_dir, done):
         try:
             X, man = load_encoder_pool_frame(cfg_path, encoder, "cxr_pool", pool_csv)
         except FileNotFoundError:
-            print(f"[e5] no embeddings for {encoder}; skipping (not marked done).")
             continue
         for finding in FINDINGS:
             M = _masks(X, man, finding, attr)
@@ -84,7 +83,7 @@ def _part1_fairclip_ot(perf_rows, stat_rows, cfg, cfg_path, out_dir, done):
                 Xtr_o, Xte_o = fairclip_ot_with_groups(Xtr, gtr, Xte, gte, seed)
                 Xva_o = fairclip_ot_with_groups(Xtr, gtr, Xva, gva, seed)[1]
             except Exception as e:
-                print(f"[e5] {encoder}/{finding} OT failed: {e}"); continue
+                continue
             clf2, sc2 = fit_head("linear", Xtr_o, ytr)
             va_o = score_head(clf2, sc2, Xva_o); te_o = score_head(clf2, sc2, Xte_o)
             thr_o = threshold_at_sensitivity(yva, va_o, target)
@@ -105,7 +104,6 @@ def _part1_fairclip_ot(perf_rows, stat_rows, cfg, cfg_path, out_dir, done):
                                      "auroc_gap", diff["auroc_gap"],
                                      fdr_family="e5_fairclip_ot",
                                      n_patients=int(dfp["patient"].nunique()))
-        print(f"[e5] FairCLIP-OT done: {encoder}")
         done.add(f"part1::{encoder}")
         R.save_partial(out_dir, "e5_main", done, perf_rows, stat_rows)
 
@@ -155,19 +153,16 @@ def _load_e3_cxr_table(e3_csv: str) -> pd.DataFrame:
 
 def _part2_transfer(perf_rows, stat_rows, cfg, cfg_path, out_dir, done):
     if "part2::done" in done:
-        print("[e5] part 2 (cross-modal transfer) already completed; skipping.")
         return
     gen = cfg["generalization"]
     e3_csv = os.path.join(cfg["mechanism"]["results_e3_dir"], "results_performance_e3.csv")
     e4_csv = os.path.join(gen["results_e4_dir"], "results_performance_e4.csv")
     if not os.path.exists(e3_csv) or not os.path.exists(e4_csv):
-        print("[e5] part 2 needs E3 and E4 CSVs; skipping transfer.")
         return
     seed = int(cfg["stats"]["boot_seed"]); n_perm = int(cfg["mechanism"]["n_perm"])
 
     cxr = _load_e3_cxr_table(e3_csv)
     if len(cxr) < 6:
-        print("[e5] too few CXR rows for a transfer source; skipping.")
         return
     F_tr = cxr[["leace_collateral", "geometric_overlap"]].values
     y_tr = cxr["ceiling_gap"].values
@@ -183,7 +178,6 @@ def _part2_transfer(perf_rows, stat_rows, cfg, cfg_path, out_dir, done):
         tab = _ent_table(cfg, cfg_path, _encoders_for(cfg, name), pool, manifest,
                          attr, findings, _ceiling_map(e4_csv, attr), seed, desc=f"{name}_target")
         if len(tab) < 3:
-            print(f"[e5] too few {name} rows for transfer target; skipping.")
             continue
         F_te = tab[["leace_collateral", "geometric_overlap"]].values
         y_te = tab["ceiling_gap"].values
@@ -200,7 +194,6 @@ def _part2_transfer(perf_rows, stat_rows, cfg, cfg_path, out_dir, done):
             context={"experiment": "e5", "modality": name, "dataset": pool,
                      "attribute": attr, "mitigation": "battery"},
             n_units=len(tab)))
-        print(f"[e5] transfer cxr->{name}: R2={r2:.3f} p={p:.4f} (n={len(tab)})")
     done.add("part2::done")
     R.save_partial(out_dir, "e5_main", done, perf_rows, stat_rows)
 
@@ -209,8 +202,6 @@ def main_e5(global_config_path: str) -> Tuple[str, str]:
     cfg = read_config(global_config_path)["BiasOrigin"]
     out_dir = cfg["generalization"]["results_e5_dir"]
     done, perf_rows, stat_rows = R.load_partial(out_dir, "e5_main")
-    if done:
-        print(f"[e5] resuming with {len(done)} units already done.")
 
     _part1_fairclip_ot(perf_rows, stat_rows, cfg, global_config_path, out_dir, done)
     _part2_transfer(perf_rows, stat_rows, cfg, global_config_path, out_dir, done)
@@ -222,6 +213,4 @@ def main_e5(global_config_path: str) -> Tuple[str, str]:
     R.write_frame_atomic(R.perf_frame(perf_rows), perf_csv)
     R.write_frame_atomic(R.stat_frame(stat_rows), stat_csv)
     R.clear_partial(out_dir, "e5_main")
-    print(f"\n[e5] performance rows: {len(perf_rows)} -> {perf_csv}")
-    print(f"[e5] statistics rows:  {len(stat_rows)} -> {stat_csv}")
     return perf_csv, stat_csv

@@ -109,9 +109,6 @@ def main_build_fairvision_pool(global_config_path: str) -> str:
             "age_raw": r.get(cols["age_col"]),
             "glaucoma": _to_binary(r.get(cols["label_col"])),
         })
-    if n_missing:
-        print(f"[fairvision] {n_missing} rows skipped (no resolvable SLO jpg or "
-              f"unknown split).")
     if not rows:
         raise RuntimeError("[fairvision] produced no rows; check that "
                            f"{root}/<train|valid|test>/images/{prefix}<id>.jpg exist.")
@@ -126,7 +123,4 @@ def main_build_fairvision_pool(global_config_path: str) -> str:
     pool_csv = fcfg["pool_manifest_csv"]
     os.makedirs(os.path.dirname(pool_csv), exist_ok=True)
     out.to_csv(pool_csv, index=False)
-    print(f"\n[fairvision] {len(out)} rows -> {pool_csv}")
-    print(f"  glaucoma: race_grp non-missing={out['race_grp'].notna().sum()} | "
-          f"pos={int(out['glaucoma'].sum(skipna=True))}")
     return pool_csv

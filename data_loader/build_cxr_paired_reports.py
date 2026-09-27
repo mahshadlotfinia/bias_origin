@@ -42,8 +42,6 @@ def _collect_mimic(pool: pd.DataFrame, image_root: str) -> pd.DataFrame:
     abs_paths = rows["report_rel_path"].apply(lambda r: os.path.join(image_root, str(r)))
     exists = abs_paths.apply(os.path.exists)
     n_missing = int((~exists).sum())
-    if n_missing:
-        print(f"[paired_reports] MIMIC: {n_missing} report files not found; excluded.")
     rows, abs_paths = rows[exists], abs_paths[exists]
     out = pd.DataFrame({
         "case_id": rows["case_id"].values, "dataset": "mimic",
@@ -51,7 +49,6 @@ def _collect_mimic(pool: pd.DataFrame, image_root: str) -> pd.DataFrame:
         "report_path": abs_paths.values, "report_text": np.nan,
         "report_source": "mimic_report_file",
     })
-    print(f"[paired_reports] MIMIC: {len(out)} rows.")
     return out.reset_index(drop=True)
 
 
@@ -66,7 +63,6 @@ def _collect_chexpert(pool: pd.DataFrame, scfg: dict) -> pd.DataFrame:
     if rows.empty or not plus_csv or not os.path.exists(plus_csv):
         if rows.empty:
             return pd.DataFrame(columns=_REPORT_COLS)
-        print("[paired_reports] CheXpert Plus CSV missing; no CheXpert reports.")
         return pd.DataFrame(columns=_REPORT_COLS)
     join_col = scfg.get("report_join_col", "jpg_rel_path")
     usecols = [join_col, *(_PLUS_SECTIONS), _PLUS_FALLBACK]
@@ -107,13 +103,11 @@ def _collect_chexpert(pool: pd.DataFrame, scfg: dict) -> pd.DataFrame:
         "report_path": np.nan, "report_text": merged["report_text"].values,
         "report_source": merged["report_source"].values,
     })
-    print(f"[paired_reports] CheXpert: {len(out)} rows.")
     return out.reset_index(drop=True)
 
 
 def _load_scrub_terms(path: str) -> List[str]:
     if not path or not os.path.exists(path):
-        print(f"[paired_reports] scrub-terms file not found ({path}); using built-in minimal list.")
         return ["male", "female", "man", "woman", "gentleman", "lady",
                 "white", "black", "caucasian", "african american", "asian",
                 "hispanic", "latino", "latina"]
@@ -167,9 +161,6 @@ def _compare_sources(src_in: pd.Series, src_out: pd.Series):
 def _assert_no_source_lost(paired: pd.DataFrame, out: pd.DataFrame,
                            arm: str, mimic_root: str) -> None:
     lost, thin = _compare_sources(_source_counts(paired), _source_counts(out))
-    if thin:
-        print(f"[paired_reports] WARNING {arm}: partial materialization - "
-              + "; ".join(thin))
     if lost:
         raise RuntimeError(
             f"[paired_reports] {arm}: no text could be materialized for "
@@ -193,9 +184,6 @@ def assert_derived_manifest_complete(derived_csv: str, paired_csv: str,
     src_out = _source_counts(read_csv_defensively(
         derived_csv, usecols=lambda c: c == "dataset"))
     lost, thin = _compare_sources(src_in, src_out)
-    if thin:
-        print(f"[paired_reports] WARNING {arm} manifest is short of its source: "
-              + "; ".join(thin))
     if lost:
         raise RuntimeError(
             f"[paired_reports] the {arm} reports manifest {derived_csv} is "
@@ -233,9 +221,6 @@ def main_build_cxr_paired_reports(global_config_path: str) -> str:
     paired = pd.concat(parts, ignore_index=True)
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)
     paired.to_csv(out_csv, index=False)
-    print(f"[paired_reports] -> {out_csv}  ({len(paired)} rows; "
-          f"text inline={paired['report_text'].notna().sum()}, "
-          f"path={paired['report_path'].notna().sum()})")
     return out_csv
 
 
@@ -262,8 +247,6 @@ def main_build_cxr_scrubbed_reports(global_config_path: str) -> str:
     _assert_no_source_lost(paired, out, "scrubbed", mimic_root)
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)
     out.to_csv(out_csv, index=False)
-    print(f"[paired_reports] scrubbed -> {out_csv}  ({len(out)} rows materialized + scrubbed; "
-          f"by source: {dict(out['dataset'].astype(str).value_counts())})")
     return out_csv
 
 
@@ -339,7 +322,4 @@ def main_build_cxr_amplified_reports(global_config_path: str) -> str:
     _assert_no_source_lost(paired, out, "amplified", mimic_root)
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)
     out.to_csv(out_csv, index=False)
-    print(f"[paired_reports] amplified -> {out_csv}  ({len(out)} rows materialized; "
-          f"{n_tagged} carry a demographic sentence; "
-          f"by source: {dict(out['dataset'].astype(str).value_counts())})")
     return out_csv

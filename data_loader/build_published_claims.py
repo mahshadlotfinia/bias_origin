@@ -356,6 +356,4 @@ def main_build_published_claims(global_config_path: str) -> str:
     df.to_csv(tmp, index=False)
     os.replace(tmp, out)
     n_aud = df[df["reported_value"].notna()]["claim_id"].nunique()
-    print(f"[claims] {df['claim_id'].nunique()} claims from {df['paper'].nunique()} papers "
-          f"({n_aud} auditable) -> {out}", flush=True)
     return out

@@ -42,14 +42,8 @@ def _is_done(npz: str, expected_ids: List[str]) -> bool:
             if cached != [str(c) for c in expected_ids]:
                 n_diff = sum(a != b for a, b in zip(cached, expected_ids))
                 same_set = set(cached) == set(map(str, expected_ids))
-                print(f"[extract] {npz}: cached case_ids do not match the manifest "
-                      f"({n_diff} positions differ; "
-                      f"{'same rows in a different order' if same_set else 'different rows'}); "
-                      f"will re-extract.")
                 return False
         if emb.shape[0] > 0 and not np.isfinite(emb).all(axis=1).any():
-            print(f"[extract] {npz}: cached embeddings are all non-finite "
-                  f"(corrupt); will re-extract.")
             return False
         return True
     except Exception:
@@ -78,7 +72,6 @@ def extract_pool(
     manifest = pool_cfg["manifest"]
     modality = pool_cfg["modality"]
     if not os.path.exists(manifest):
-        print(f"[extract] {encoder}/{pool}: manifest missing ({manifest}); skipped.")
         return None
 
     npz = _npz_path(output_dir, encoder, pool)
@@ -88,7 +81,6 @@ def extract_pool(
     expected_ids = [str(r.get("case_id", "")) for r in ds.records]
 
     if _is_done(npz, expected_ids):
-        print(f"[extract] {encoder}/{pool}: done ({n_expected} rows); skipping.")
         return npz
 
     dl = DataLoader(ds, batch_size=batch_size, shuffle=False,
@@ -102,7 +94,6 @@ def extract_pool(
 
     embeddings = np.concatenate(all_emb, axis=0) if all_emb else np.zeros((0, 0), np.float32)
     _save_npz(npz, embeddings, all_ids)
-    print(f"[extract] {encoder}/{pool}: wrote {embeddings.shape} -> {npz}")
     return npz
 
 

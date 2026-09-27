@@ -36,7 +36,6 @@ def main_build_fitz17k_pool(global_config_path: str) -> str:
     dcfg = cfg["derm"]
     scfg = dcfg["sources"]["fitz17k"]
     if not scfg.get("enabled", True):
-        print("[fitz17k] disabled; skipping.")
         return dcfg["pool_manifest_csv"].replace(".csv", "_fitz17k.csv")
 
     csv = scfg["csv"]
@@ -78,11 +77,6 @@ def main_build_fitz17k_pool(global_config_path: str) -> str:
             "fst_scale_raw": r.get(fst_col),
             "fst_grp": fst_grp, "monk_grp": np.nan, "race_grp": np.nan,
         })
-    if n_dropfst:
-        print(f"[fitz17k] {n_dropfst} rows dropped (FST not in 1..6).")
-    if n_missing:
-        print(f"[fitz17k] {n_missing} images not found on disk; skipped "
-              f"(download images from `url` into {src_root}).")
     if not rows:
         raise RuntimeError("[fitz17k] no rows produced; check images dir.")
 
@@ -99,7 +93,4 @@ def main_build_fitz17k_pool(global_config_path: str) -> str:
     fz_csv = dcfg["pool_manifest_csv"].replace(".csv", "_fitz17k.csv")
     os.makedirs(os.path.dirname(fz_csv), exist_ok=True)
     out.to_csv(fz_csv, index=False)
-    print(f"[fitz17k] {len(out)} rows -> {fz_csv}")
-    for g, n in out["fst_grp"].value_counts(dropna=False).items():
-        print(f"    fst_grp {g}: {n}")
     return fz_csv

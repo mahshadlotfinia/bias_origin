@@ -21,14 +21,14 @@ from analysis import fairness_metrics as FM
 from analysis.fairness_metrics import compute_fairness_point
 from Inference.stats_utils import (
     cluster_bootstrap, cluster_bootstrap_paired_diff, cluster_bootstrap_arrays,
-    cluster_bootstrap_paired_diff_arrays, spearman_with_perm, resolve_n_jobs,
+    cluster_bootstrap_paired_diff_arrays, resolve_n_jobs,
 )
 from Inference import report_utils as R
 from mitigation import preprocessing as PRE
 from mitigation import inprocessing as INP
 from mitigation import postprocessing as POST
 from mitigation import erasure as ERA
-from mitigation.ceiling import compute_ceiling, tradeoff_table
+from mitigation.ceiling import compute_ceiling
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -42,7 +42,7 @@ SCORE_METHODS = {"reweigh": PRE.reweighted, "resample": PRE.resampled,
                  "group_dro": INP.group_dro, "adversarial": INP.adversarial,
                  "reduction": INP.fairlearn_reduction}
 POST_METHODS = {"platt_recal": POST.per_group_platt, "eo_shift": POST.per_group_threshold_shift}
-ERASE_METHODS = {"leace": ERA.leace, "inlp": ERA.inlp, "rlace": ERA.rlace}
+ERASE_METHODS = {"leace": ERA.leace, "inlp": ERA.inlp}
 
 
 def select_methods(cfg, only=None):
@@ -180,7 +180,6 @@ def run_encoder_finding(perf_rows, stat_rows, encoder, X, man, finding, cfg,
             "eval_dataset": dataset, "encoder": encoder, "attribute": attr,
             "finding": finding, "operating_point": f"sens{target:.2f}", **extra_ctx}
 
-    print(f"[e2] {encoder}/{finding}: baseline...")
     clf, sc = fit_head("linear", Xtr[cap_idx], ytr[cap_idx])
     base_va = score_head(clf, sc, Xva); base_te = score_head(clf, sc, Xte)
     thr0 = threshold_at_sensitivity(yva, base_va, target)
@@ -202,11 +201,10 @@ def run_encoder_finding(perf_rows, stat_rows, encoder, X, man, finding, cfg,
     te_scores_by_method: Dict[str, np.ndarray] = {}
 
     for name, fn in score_methods.items():
-        print(f"[e2] {encoder}/{finding}: {name}...")
         try:
             mva, mte = fn(Xtr, ytr, gtr, Xva, yva, gva, Xte, gte, seed)
         except Exception as e:
-            print(f"[e2] {encoder}/{finding}/{name} failed: {e}"); continue
+            continue
         thr = threshold_at_sensitivity(yva, mva, target)
         boot = ev.boot(mte, thr, n_boot, seed, n_jobs)
         _emit(perf_rows, {**base, "encoder_objective": encoder, "mitigation": name}, boot,
@@ -216,11 +214,10 @@ def run_encoder_finding(perf_rows, stat_rows, encoder, X, man, finding, cfg,
         te_scores_by_method[name] = mte
 
     for name, fn in post_methods.items():
-        print(f"[e2] {encoder}/{finding}: {name}...")
         try:
             mva, mte = fn(base_va, yva, gva, base_te, gte, target, seed)
         except Exception as e:
-            print(f"[e2] {encoder}/{finding}/{name} failed: {e}"); continue
+            continue
         thr = threshold_at_sensitivity(yva, mva, target)
         boot = ev.boot(mte, thr, n_boot, seed, n_jobs)
         _emit(perf_rows, {**base, "encoder_objective": encoder, "mitigation": name}, boot,
@@ -230,12 +227,11 @@ def run_encoder_finding(perf_rows, stat_rows, encoder, X, man, finding, cfg,
         te_scores_by_method[name] = mte
 
     for name, fn in erase_methods.items():
-        print(f"[e2] {encoder}/{finding}: {name}...")
         Xtr_e = Xte_e = Xva_e = None
         try:
             Xtr_e, Xte_e, Xva_e = fn(Xtr, gtr, Xte, seed, X_more=Xva)
         except Exception as e:
-            print(f"[e2] {encoder}/{finding}/{name} failed: {e}"); continue
+            continue
         clf_e, sc_e = fit_head("linear", Xtr_e[cap_idx], ytr[cap_idx])
         mva = score_head(clf_e, sc_e, Xva_e); mte = score_head(clf_e, sc_e, Xte_e)
         thr = threshold_at_sensitivity(yva, mva, target)
@@ -273,50 +269,6 @@ def run_encoder_finding(perf_rows, stat_rows, encoder, X, man, finding, cfg,
                                  fdr_family="e2_ceiling_reduction",
                                  n_patients=ev.n_patients)
 
-    cost, reduction = tradeoff_table(method_points, unmit_gap, unmit_auroc)
-    if np.isfinite(cost).sum() >= 4:
-        rho, p = spearman_with_perm(cost, reduction)
-        R.report_spearman(stat_rows, {**base, "encoder_objective": encoder, "mitigation": "battery"},
-                          rho, p, fdr_family="e2_tradeoff", n_units=int(np.isfinite(cost).sum()))
-
-
-def _print_resample_budget(X, man, attr, tag):
-    if attr not in man.columns:
-        return
-    finite = np.isfinite(X).all(axis=1)
-    tr_m, _, _ = split_masks(man)
-    g = np.asarray([str(v) for v in man[attr].values])
-    ok = tr_m & finite & (pd.Series(g).astype(str).str.lower().values != "nan")
-    d = int(X.shape[1])
-    worst_gb, worst_f, worst_rows = 0.0, None, 0
-    for f in FINDINGS:
-        if f not in man.columns:
-            continue
-        y = pd.to_numeric(man[f], errors="coerce").values
-        m = ok & np.isfinite(y)
-        if m.sum() < 30:
-            continue
-        gg, yy = g[m], y[m]
-        counts = [int(((gg == gv) & (yy == yv)).sum())
-                  for gv in np.unique(gg) for yv in np.unique(yy)]
-        counts = [c for c in counts if c > 0]
-        if not counts:
-            continue
-        rows = len(counts) * max(counts)
-        gb = rows * d * 8 / 1024 ** 3
-        if gb > worst_gb:
-            worst_gb, worst_f, worst_rows = gb, f, rows
-    if worst_f is None:
-        return
-    resident = 2 * X.nbytes / 1024 ** 3
-    need = 2.13 * worst_gb + resident + 2.0
-    print(f"[e2] {tag}: memory budget. The largest array this cell builds is the "
-          f"oversampled training block for {worst_f}, {worst_rows} rows x {d} dims "
-          f"in float64 = {worst_gb:.1f} GB, and standardizing it briefly holds a "
-          f"second copy, so that step peaks near {2.13 * worst_gb:.1f} GB. Up to "
-          f"{resident:.1f} GB more is held throughout by the cached embeddings and "
-          f"their per-split copies. Give this job at least {need:.0f} GB.")
-
 
 def _e2_encoders(cfg) -> List[str]:
     panel = cfg["encoder_panel"]["image"]
@@ -327,9 +279,6 @@ def _e2_encoders(cfg) -> List[str]:
 def run_e2_encoder(cfg, cfg_path, encoder, pool_csv, out_dir, attr=ATTR):
     tag = e2_shard_tag(encoder, attr)
     done, perf_rows, stat_rows = R.load_partial(out_dir, tag)
-    if done:
-        print(f"[e2] {tag}: resuming, {len(done)}/{len(FINDINGS)} findings "
-             f"already done.")
     try:
         X, man = load_encoder_pool_frame(cfg_path, encoder, "cxr_pool", pool_csv)
     except FileNotFoundError as e:
@@ -338,7 +287,6 @@ def run_e2_encoder(cfg, cfg_path, encoder, pool_csv, out_dir, attr=ATTR):
         raise R.MissingInput(
             f"[e2] {encoder}: cxr_pool embeddings are all non-finite (corrupt cache); "
             f"re-extract the embeddings of this encoder before re-running E2.")
-    _print_resample_budget(X, man, attr, tag)
     remaining = [f for f in FINDINGS if f not in done]
     pbar = tqdm(remaining, desc=f"[e2] {tag}", unit="finding")
     for finding in pbar:
@@ -346,7 +294,6 @@ def run_e2_encoder(cfg, cfg_path, encoder, pool_csv, out_dir, attr=ATTR):
         done.add(finding)
         R.save_partial(out_dir, tag, done, perf_rows, stat_rows)
         R.heartbeat_claim(out_dir, tag)
-    print(f"[e2] battery done: {tag}")
     return perf_rows, stat_rows
 
 
@@ -356,22 +303,18 @@ def main_e2_encoder(encoder: str, global_config_path: str, attribute: str = ATTR
     out_dir = cfg["mitigation"]["results_e2_dir"]
     tag = e2_shard_tag(encoder, attribute)
     if not force and R.shard_exists(out_dir, tag):
-        print(f"[e2] shard for {tag} exists; skipping (force=True to redo).")
         return
     stale = float(cfg["stats"].get("claim_stale_after_s", 21600))
     if not force and not R.claim_unit(out_dir, tag, stale):
-        print(f"[e2] {tag} is claimed by another running job; skipping to the next.")
         return
     pool_csv = cfg["cxr"]["pool_manifest_csv"]
     try:
         perf_rows, stat_rows = run_e2_encoder(cfg, global_config_path, encoder,
                                               pool_csv, out_dir, attr=attribute)
     except R.MissingInput as e:
-        print(f"{e} SKIP (no shard written; re-runs once the input exists).")
         R.release_claim(out_dir, tag)
         return
     if not perf_rows and not stat_rows:
-        print(f"[e2] {tag}: produced no rows; not writing a shard.")
         R.release_claim(out_dir, tag)
         return
     R.write_shard(out_dir, tag, perf_rows, stat_rows)

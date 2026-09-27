@@ -81,7 +81,6 @@ def main_build_isic2019_pool(global_config_path: str) -> str:
     dcfg = cfg["derm"]
     scfg = dcfg["sources"]["isic2019"]
     if not scfg.get("enabled", True):
-        print("[isic2019] disabled; skipping.")
         return dcfg["pool_manifest_csv"].replace(".csv", "_isic2019.csv")
 
     gt_csv = scfg["groundtruth_csv"]
@@ -98,8 +97,6 @@ def main_build_isic2019_pool(global_config_path: str) -> str:
     meta = None
     if meta_csv and os.path.exists(meta_csv):
         meta = read_csv_defensively(meta_csv).set_index(img_col)
-    else:
-        print(f"[isic2019] metadata csv not found ({meta_csv}); age/sex will be NaN.")
     age_col = scfg.get("age_col", "age_approx")
     sex_col = scfg.get("sex_col", "sex")
     lesion_col = scfg.get("lesion_col", "lesion_id")
@@ -137,9 +134,6 @@ def main_build_isic2019_pool(global_config_path: str) -> str:
             "sex_grp": normalize_sex(sex_raw),
             "age_grp": bin_age(age_raw, cfg["sensitive"]),
         })
-    if n_missing:
-        print(f"[isic2019] {n_missing} images not found on disk; skipped "
-              f"(expected under {src_root}).")
     if not rows:
         raise RuntimeError("[isic2019] no rows produced; check images dir and csv.")
 
@@ -156,8 +150,4 @@ def main_build_isic2019_pool(global_config_path: str) -> str:
     isic_csv = dcfg["pool_manifest_csv"].replace(".csv", "_isic2019.csv")
     os.makedirs(os.path.dirname(isic_csv), exist_ok=True)
     out.to_csv(isic_csv, index=False)
-    print(f"[isic2019] {len(out)} rows -> {isic_csv}")
-    print(f"    malignant pos={int(out['malignant'].sum(skipna=True))} | "
-          f"sex_grp non-missing={out['sex_grp'].notna().sum()} | "
-          f"age_grp non-missing={out['age_grp'].notna().sum()}")
     return isic_csv

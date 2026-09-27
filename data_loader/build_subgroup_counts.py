@@ -73,11 +73,9 @@ def main_build_subgroup_counts(global_config_path: str) -> str:
     parts = []
     for modality, csv, attrs, findings in specs:
         if not os.path.exists(csv):
-            print(f"[subgroup_counts] {modality}: manifest missing ({csv}); skipped.")
             continue
         df = read_csv_defensively(csv)
         part = _emit(df, modality, attrs, findings)
-        print(f"[subgroup_counts] {modality}: {len(part)} count rows.")
         parts.append(part)
 
     if not parts:
@@ -86,5 +84,4 @@ def main_build_subgroup_counts(global_config_path: str) -> str:
     counts = pd.concat(parts, ignore_index=True)
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)
     counts.to_csv(out_csv, index=False)
-    print(f"\n[subgroup_counts] -> {out_csv}  ({len(counts)} rows)")
     return out_csv

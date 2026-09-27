@@ -110,7 +110,6 @@ def main_e7(global_config_path: str) -> Tuple[str, str]:
     for rho in grid:
         for sd in tqdm(seeds, desc=f"[e7] rho={rho}", unit="seed"):
             rows.append({"rho_grid": rho, **_one(rho, sd, cfg)})
-        print(f"[e7] rho={rho} done ({len(seeds)} seeds)")
     tab = pd.DataFrame(rows)
 
     perf_rows: List[Dict] = []
@@ -150,7 +149,4 @@ def main_e7(global_config_path: str) -> Tuple[str, str]:
     stat_csv = os.path.join(out_dir, "results_statistics_e7.csv")
     R.write_frame_atomic(R.perf_frame(perf_rows), perf_csv)
     R.write_frame_atomic(R.stat_frame(stat_rows), stat_csv)
-    print(f"\n[e7] grid x seeds rows: {len(tab)}")
-    print(f"[e7] performance rows: {len(perf_rows)} -> {perf_csv}")
-    print(f"[e7] statistics rows:  {len(stat_rows)} -> {stat_csv}")
     return perf_csv, stat_csv

@@ -31,7 +31,6 @@ def main_build_mimic_demographics(global_config_path: str) -> str:
     sens = cfg["sensitive"]
 
     if not mcfg.get("enabled", True):
-        print("[mimic_demographics] disabled in config; skipping.")
         return mcfg["out_csv"]
 
     adm_csv = mcfg["admissions_csv"]
@@ -46,13 +45,11 @@ def main_build_mimic_demographics(global_config_path: str) -> str:
                 f"{os.path.dirname(adm_csv)} (PhysioNet MIMIC-IV v3.1 hosp module)."
             )
 
-    print(f"[mimic_demographics] reading {adm_csv}")
     adm = read_csv_defensively(
         adm_csv,
         usecols=lambda c: c in {"subject_id", "race", "insurance",
                                 "language", "marital_status"},
     )
-    print(f"[mimic_demographics] reading {pat_csv}")
     pat = read_csv_defensively(
         pat_csv,
         usecols=lambda c: c in {"subject_id", "gender", "anchor_age"},
@@ -78,11 +75,4 @@ def main_build_mimic_demographics(global_config_path: str) -> str:
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)
     agg.to_csv(out_csv, index=False)
 
-    print(f"[mimic_demographics] {len(agg)} subjects -> {out_csv}")
-    print("  race_grp distribution:")
-    for g, n in agg["race_grp"].value_counts(dropna=False).items():
-        print(f"    {g}: {n}")
-    print("  insurance_grp distribution:")
-    for g, n in agg["insurance_grp"].value_counts(dropna=False).items():
-        print(f"    {g}: {n}")
     return out_csv

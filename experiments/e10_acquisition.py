@@ -109,8 +109,6 @@ def run_e10_encoder(cfg, cfg_path, encoder, out_dir, tag):
     target = float(cfg["stats"]["operating_sensitivity"])
 
     done, perf_rows, stat_rows = R.load_partial(out_dir, tag)
-    if done:
-        print(f"[e10] {tag}: resuming, {len(done)}/{len(FINDINGS)} findings done.")
     try:
         X, man = load_encoder_pool_frame(cfg_path, encoder, "cxr_pool",
                                          cfg["cxr"]["pool_manifest_csv"])
@@ -124,7 +122,6 @@ def run_e10_encoder(cfg, cfg_path, encoder, out_dir, tag):
                         desc=f"[e10] {tag}", unit="finding"):
         cell = _fit_cell(X, man, finding, cap, seed, target)
         if cell is None:
-            print(f"[e10] {tag}/{finding}: not evaluable; skipping.")
             done.add(finding)
             R.save_partial(out_dir, tag, done, perf_rows, stat_rows)
             continue
@@ -139,7 +136,6 @@ def run_e10_encoder(cfg, cfg_path, encoder, out_dir, tag):
         for tech in a["technical"]:
             if tech not in man.columns:
                 continue
-            print(f"[e10] {encoder}/{finding}: {tech} as attribute...")
             _panel(perf_rows, {**base, "attribute": tech,
                                "data_composition": "stratum:all"},
                    yte, s_te, man[tech].values[te], pte, thr, a, ref_cfg)
@@ -148,7 +144,6 @@ def run_e10_encoder(cfg, cfg_path, encoder, out_dir, tag):
             if attr not in man.columns:
                 continue
             g_all = man[attr].values[te]
-            print(f"[e10] {encoder}/{finding}: {attr} pooled...")
             _panel(perf_rows, {**base, "attribute": attr,
                                "data_composition": "stratum:all"},
                    yte, s_te, g_all, pte, thr, a, ref_cfg)
@@ -162,8 +157,6 @@ def run_e10_encoder(cfg, cfg_path, encoder, out_dir, tag):
                     m = (lv.values == level)
                     if int(m.sum()) < a["min_stratum_n"]:
                         continue
-                    print(f"[e10] {encoder}/{finding}: {attr} within {strat}={level}"
-                          f" ({int(m.sum())} rows)...")
                     _panel(perf_rows,
                            {**base, "attribute": attr,
                             "data_composition": f"stratum:{strat}={level}"},
@@ -171,7 +164,6 @@ def run_e10_encoder(cfg, cfg_path, encoder, out_dir, tag):
         done.add(finding)
         R.save_partial(out_dir, tag, done, perf_rows, stat_rows)
         R.heartbeat_claim(out_dir, tag)
-    print(f"[e10] encoder done: {tag}")
     return perf_rows, stat_rows
 
 
@@ -181,21 +173,17 @@ def main_e10_encoder(encoder: str, global_config_path: str, force: bool = False)
     out_dir = a["out_dir"]
     tag = encoder
     if not force and R.shard_exists(out_dir, tag):
-        print(f"[e10] shard for {tag} exists; skipping (force=True to redo).")
         return
     stale = float(cfg["stats"].get("claim_stale_after_s", 21600))
     if not force and not R.claim_unit(out_dir, tag, stale):
-        print(f"[e10] {tag} is claimed by another running job; skipping to the next.")
         return
     try:
         perf_rows, stat_rows = run_e10_encoder(cfg, global_config_path, encoder,
                                                out_dir, tag)
     except R.MissingInput as e:
-        print(f"{e} SKIP (no shard written; re-runs once the input exists).")
         R.release_claim(out_dir, tag)
         return
     if not perf_rows and not stat_rows:
-        print(f"[e10] {tag}: produced no rows; not writing a shard.")
         R.release_claim(out_dir, tag)
         return
     R.write_shard(out_dir, tag, perf_rows, stat_rows)

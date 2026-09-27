@@ -37,7 +37,6 @@ BiasOrigin:
     reports:
       sources:      [mimic, chexpert_plus]
       use_sections: [section_findings, section_impression]
-      scrub_terms_file: "${repo_root}/data_loader/demographic_scrub_terms.txt"
       scrubbed_reports_csv: "${manifests_dir}/cxr_paired_reports_scrubbed_manifest.csv"
       amplified_reports_csv: "${manifests_dir}/cxr_paired_reports_amplified_manifest.csv"
       amplify_attributes: [race_grp, sex_grp, age_grp]
@@ -192,7 +191,7 @@ BiasOrigin:
   fundus:
     enabled:           true
     image_root:        "${datasets_root}/Fundus"
-    pool_manifest_csv: "${manifests_dir}/masterlist.csv"
+    pool_manifest_csv: "${manifests_dir}/fundus_pool_manifest.csv"
     sources:
       fairvision:
         enabled:       true
@@ -226,7 +225,6 @@ BiasOrigin:
       Medicaid:  ["medicaid"]
       Private:   ["private", "commercial"]
     fst_groups:      [I_II, III_IV, V_VI]
-    monk_groups:     [light, medium, dark]
     fundus_race_groups: [White, Black, Asian]
     sex_values:      [M, F]
     control_attributes: [view, site]
@@ -322,7 +320,7 @@ BiasOrigin:
       siglip2_large:
         hf_id: google/siglip2-large-patch16-512
         type: clip_pooled
-        dim: 1152
+        dim: 1024
         objective: general_image_text
         modality: general
         roles: [general, offtheshelf]
@@ -388,7 +386,6 @@ BiasOrigin:
     methods_image_text_only: [fairclip_ot]
     auroc_tolerance_pts: 1.0
     head_types: [linear, mlp]
-    lora_for_controlled: true
     attributes: [race_grp, age_grp]
     results_e2_dir:   "${outputs_root}/results_e2_ceiling"
 
@@ -396,8 +393,6 @@ BiasOrigin:
     results_e3_dir:        "${outputs_root}/results_e3_mechanism"
     n_splits:              5
     n_perm:                1000
-    run_label_permutation: false
-    label_perm_n:          100
 
   generalization:
     results_e4_dir:  "${outputs_root}/results_e4_generalization"
@@ -436,10 +431,17 @@ BiasOrigin:
     boot_unit:            patient
     fdr_alpha:            0.05
     operating_sensitivity: 0.80
-    secondary_operating_point: youden
     head_max_train: 100000
     bootstrap_n_jobs: auto
     claim_stale_after_s: 21600
+
+  final_tables:
+    dir: "${outputs_root}/final_tables"
+    performance_csv:      "${outputs_root}/final_tables/results_performance.csv"
+    statistics_csv:       "${outputs_root}/final_tables/results_statistics.csv"
+    frontier_curves_csv:  "${outputs_root}/final_tables/results_frontier_curves.csv"
+    run_metadata_csv:     "${outputs_root}/final_tables/results_run_metadata.csv"
+    subgroup_counts_csv:  "${outputs_root}/final_tables/results_subgroup_counts.csv"
 
   theory:
     results_e7_dir:  "${outputs_root}/results_e7_theory"
@@ -454,7 +456,7 @@ BiasOrigin:
     encoders:        [rad_dino, dinov2_large]
     attributes:      [race_grp, age_grp]
     stratifiers:     [view]
-    technical:       [view, site]
+    technical_attributes: [view, site]
     drop_levels:     [unknown]
     min_stratum_n:   500
     min_subgroup_n:  20

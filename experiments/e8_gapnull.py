@@ -114,12 +114,10 @@ def _observed_cells(cfg, arms: List[str]) -> pd.DataFrame:
     rows = []
     for arm in arms:
         if arm not in _ARM_DIR_KEY:
-            print(f"[e8] unknown source arm '{arm}'; skipping.")
             continue
         blk, key = _ARM_DIR_KEY[arm]
         path = os.path.join(cfg[blk][key], f"results_performance_{arm}.csv")
         if not os.path.exists(path):
-            print(f"[e8] (absent) {path}")
             continue
         df = pd.read_csv(path, low_memory=False, float_precision="round_trip")
         df = df[df["metric_name"].isin(["auroc_gap", "auroc_overall"])]
@@ -131,7 +129,6 @@ def _observed_cells(cfg, arms: List[str]) -> pd.DataFrame:
         if "auroc_gap" not in piv.columns or "auroc_overall" not in piv.columns:
             continue
         piv = piv.dropna(subset=["auroc_gap", "auroc_overall"])
-        print(f"[e8] + {arm}: {len(piv)} observed cells")
         rows.append(piv)
     return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
 
@@ -198,22 +195,17 @@ def main_e8(global_config_path: str) -> Tuple[str, str]:
             f"[e8] subgroup counts not found: {counts_csv}. Run "
             f"main_build_subgroup_counts before E8.")
     index = _subgroup_counts_index(counts_csv, min_n)
-    print(f"[e8] subgroup-count index: {len(index)} (modality, attribute, finding) keys.")
 
     cells = _observed_cells(cfg, list(gn.get("source_arms", ["e2", "e4", "e6"])))
     if cells.empty:
         raise R.MissingInput(
             "[e8] no observed cells found. E8 reads the MERGED per-arm "
             "performance CSVs, so run those arms and their merges first.")
-    print(f"[e8] {len(cells)} observed cells total; simulating {n_sim} fair "
-          f"models each with method='{method}'.")
 
     if method != "exact":
         _verify_hanley(cells, index, n_sim, seed, int(gn.get("verify_exact_cells", 12)))
 
     done, perf_rows, stat_rows = R.load_partial(out_dir, "e8_main")
-    if done:
-        print(f"[e8] resuming, {len(done)}/{len(cells)} cells already done.")
     n_skipped = 0
 
     def _cell_key(c) -> str:
@@ -264,9 +256,6 @@ def main_e8(global_config_path: str) -> Tuple[str, str]:
 
     tracked = _tracked_from_rows(perf_rows)
 
-    if n_skipped:
-        print(f"[e8] {n_skipped} cells skipped: no subgroup-count row, or fewer "
-              f"than {min_groups} subgroups at n >= {min_n}.")
 
     n_perm = int(cfg["stats"]["n_perm"])
     for (exp, attr), pairs in sorted(tracked.items()):
@@ -293,8 +282,4 @@ def main_e8(global_config_path: str) -> Tuple[str, str]:
            and bool(s.get("significant_fdr05"))]
     n_tests = len([s for s in stat_rows
                    if str(s.get("fdr_family", "")).startswith("e8_gap_vs_null")])
-    print(f"\n[e8] {len(sig)}/{n_tests} cells have a gap larger than a perfectly "
-          f"fair model produces at the same subgroup sizes (BH-FDR).")
-    print(f"[e8] performance rows: {len(perf_rows)} -> {perf_csv}")
-    print(f"[e8] statistics rows:  {len(stat_rows)} -> {stat_csv}")
     return perf_csv, stat_csv

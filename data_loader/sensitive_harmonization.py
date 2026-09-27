@@ -91,20 +91,6 @@ def collapse_fst_from_ddi_code(value) -> Optional[str]:
     return {12: "I_II", 34: "III_IV", 56: "V_VI"}.get(v, None)
 
 
-def collapse_monk(value) -> Optional[str]:
-    try:
-        v = int(round(float(value)))
-    except (TypeError, ValueError):
-        return None
-    if 1 <= v <= 3:
-        return "light"
-    if 4 <= v <= 7:
-        return "medium"
-    if 8 <= v <= 10:
-        return "dark"
-    return None
-
-
 def attach_cxr_sensitive(
     df: pd.DataFrame,
     sens_cfg: dict,

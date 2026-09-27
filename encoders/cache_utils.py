@@ -41,7 +41,6 @@ def purge_model_cache(hf_id: str, cfg_path: str, enabled: Optional[bool] = None)
         return
 
     if hf_id is None or os.path.isdir(str(hf_id)):
-        print(f"[purge] '{hf_id}' is a local path or empty; not purging.")
         return
 
     cache_dir = emb.get("hf_cache_dir", "") or os.environ.get(
@@ -51,14 +50,11 @@ def purge_model_cache(hf_id: str, cfg_path: str, enabled: Optional[bool] = None)
 
     _release_memory()
     if not os.path.isdir(folder):
-        print(f"[purge] ENABLED but no cache folder for '{hf_id}' at {folder}.")
         return
     try:
         shutil.rmtree(folder)
-        print(f"[purge] removed HF weights cache for '{hf_id}' at {folder}")
     except Exception as e:
-        print(f"[purge] could NOT remove '{hf_id}' cache at {folder}: "
-              f"{type(e).__name__}: {e}")
+        pass
 
 
 def purge_encoders_after_stage(encoder_names, panel: dict, cfg_path: str) -> None:

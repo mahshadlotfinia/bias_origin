@@ -122,12 +122,6 @@ def entanglement_for(X, man, finding, attr, seed=0, prep: Optional[PoolPrep] = N
             "n_test": int(len(te))}
 
 
-def format_timings(timings: Dict[str, float]) -> str:
-    items = sorted(timings.items(), key=lambda kv: -kv[1])
-    return f"{sum(timings.values()):.0f}s total: " + \
-           ", ".join(f"{k} {v:.0f}s" for k, v in items)
-
-
 def _clean(F, y):
     F = np.asarray(F, float); y = np.asarray(y, float)
     m = np.isfinite(y) & np.isfinite(F).all(axis=1)

@@ -264,8 +264,6 @@ def _map_replicates(one: Callable, all_chosen: np.ndarray, n_jobs: int) -> List[
     if _torch is not None and getattr(_torch, "cuda", None) is not None:
         try:
             if _torch.cuda.is_initialized():
-                print("[stats] CUDA is initialized in this process; bootstrap runs "
-                      "serially rather than forking.")
                 return [one(c) for c in all_chosen]
         except Exception:
             pass
@@ -273,7 +271,6 @@ def _map_replicates(one: Callable, all_chosen: np.ndarray, n_jobs: int) -> List[
         import multiprocessing as mp
         ctx = mp.get_context("fork")
     except (ImportError, ValueError) as e:
-        print(f"[stats] no fork start method ({e}); bootstrap runs serially.")
         return [one(c) for c in all_chosen]
     edges = np.linspace(0, n, min(n_jobs, n) + 1).astype(int)
     bounds = [(int(a), int(b)) for a, b in zip(edges[:-1], edges[1:]) if b > a]
@@ -284,7 +281,6 @@ def _map_replicates(one: Callable, all_chosen: np.ndarray, n_jobs: int) -> List[
             chunks = pool.map(_replicate_chunk, bounds, chunksize=1)
         return [r for chunk in chunks for r in chunk]
     except Exception as e:
-        print(f"[stats] parallel bootstrap failed ({e}); falling back to serial.")
         return [one(c) for c in all_chosen]
     finally:
         _REPLICATE_STATE.clear()
@@ -476,20 +472,6 @@ def wilcoxon_signed_rank(x: np.ndarray, y: np.ndarray) -> tuple:
         return (float("nan"), float("nan"))
     try:
         s, p = wilcoxon(x, y)
-        return (float(s), float(p))
-    except ValueError:
-        return (float("nan"), float("nan"))
-
-
-def friedman_test(*groups: np.ndarray) -> tuple:
-    from scipy.stats import friedmanchisquare
-    arrs = [np.asarray(g, float) for g in groups]
-    n = min(len(a) for a in arrs)
-    arrs = [a[:n] for a in arrs]
-    if n < 2 or len(arrs) < 3:
-        return (float("nan"), float("nan"))
-    try:
-        s, p = friedmanchisquare(*arrs)
         return (float(s), float(p))
     except ValueError:
         return (float("nan"), float("nan"))
