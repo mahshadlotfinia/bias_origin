@@ -6,7 +6,6 @@ Created on June 29, 2026
 https://github.com/mahshadlotfinia
 """
 
-import os
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -32,11 +31,6 @@ class BaseEmbeddingDataset(Dataset):
 
         df = read_csv_defensively(manifest_csv)
         self.records: List[Dict[str, Any]] = df.reset_index(drop=True).to_dict("records")
-
-        print(
-            f"[{type(self).__name__}] manifest={os.path.basename(manifest_csv)} | "
-            f"resolution={resolution} | {len(self.records)} cases"
-        )
 
 
     def _resolve_path(self, row: Dict[str, Any]) -> str:
