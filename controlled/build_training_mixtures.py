@@ -9,7 +9,6 @@ https://github.com/mahshadlotfinia
 import os
 from typing import List
 
-import numpy as np
 import pandas as pd
 
 from config.serde import read_config

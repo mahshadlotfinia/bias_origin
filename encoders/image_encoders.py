@@ -127,7 +127,7 @@ def _load_flair(hf_id, device, dtype, spec):
     repo = hf_id if (hf_id and str(hf_id) not in ("FLAIR_LOCAL", "")) else "jusiro2/FLAIR"
     try:
         model = FLAIRModel.from_pretrained(repo)
-    except Exception as e:
+    except Exception:
         model = FLAIRModel(from_checkpoint=True)
     try:
         model.to(device)

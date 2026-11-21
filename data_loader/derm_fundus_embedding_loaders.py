@@ -7,9 +7,9 @@ https://github.com/mahshadlotfinia
 """
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-from data_loader.base_embedding_loader import BaseEmbeddingDataset, embedding_collate_fn
+from data_loader.base_embedding_loader import BaseEmbeddingDataset
 from data_loader.cxr_embedding_loader import CXREmbeddingDataset
 
 

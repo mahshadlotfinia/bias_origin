@@ -41,7 +41,6 @@ def _collect_mimic(pool: pd.DataFrame, image_root: str) -> pd.DataFrame:
         return pd.DataFrame(columns=_REPORT_COLS)
     abs_paths = rows["report_rel_path"].apply(lambda r: os.path.join(image_root, str(r)))
     exists = abs_paths.apply(os.path.exists)
-    n_missing = int((~exists).sum())
     rows, abs_paths = rows[exists], abs_paths[exists]
     out = pd.DataFrame({
         "case_id": rows["case_id"].values, "dataset": "mimic",
@@ -317,7 +316,6 @@ def main_build_cxr_amplified_reports(global_config_path: str) -> str:
         "_tagged": (sentences.astype(str).str.strip() != "").values,
     })
     out = out[out["report_text"].notna() & (out["report_text"].astype(str).str.strip() != "")].copy()
-    n_tagged = int(out["_tagged"].sum())
     out = out.drop(columns=["_tagged"])
     _assert_no_source_lost(paired, out, "amplified", mimic_root)
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)

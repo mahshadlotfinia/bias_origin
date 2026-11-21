@@ -65,7 +65,6 @@ def _load_site(site: str, scfg: dict, drop_lateral: bool) -> pd.DataFrame:
     id_like_cols = ["subject_id_col", "study_id_col", "image_key_col", "image_subdir_col"]
     dtype_map = {scfg[k]: str for k in id_like_cols if scfg.get(k)}
     df = read_csv_defensively(master, dtype=dtype_map) if dtype_map else read_csv_defensively(master)
-    n0 = len(df)
 
     key_col = scfg.get("image_key_col")
     if not key_col or key_col not in df.columns:
@@ -139,7 +138,7 @@ def _load_site(site: str, scfg: dict, drop_lateral: bool) -> pd.DataFrame:
                                         scfg.get("insurance_col"): "insurance"})
             out = out.drop(columns=["race", "ethnicity", "insurance"], errors="ignore").merge(
                 plus[["image_key", "race", "ethnicity", "insurance"]], on="image_key", how="left")
-        except Exception as e:
+        except Exception:
             pass
 
     return out
@@ -209,6 +208,4 @@ def main_build_cxr_pool(global_config_path: str) -> str:
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)
     pool.to_csv(out_csv, index=False)
 
-    for col in CXR_SENSITIVE_COLS:
-        n_known = pool[col].notna().sum()
     return out_csv

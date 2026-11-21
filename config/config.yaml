@@ -29,11 +29,6 @@ BiasOrigin:
     verify_image_exists: true
     drop_lateral:        true
 
-    label_policy_default:
-      positive_code:  1
-      negative_codes: [0, 2]
-      exclude_codes:  [3]
-
     reports:
       sources:      [mimic, chexpert_plus]
       use_sections: [section_findings, section_impression]
@@ -227,10 +222,6 @@ BiasOrigin:
     fst_groups:      [I_II, III_IV, V_VI]
     fundus_race_groups: [White, Black, Asian]
     sex_values:      [M, F]
-    control_attributes: [view, site]
-
-  subgroup_counts:
-    out_csv: "${manifests_dir}/subgroup_counts.csv"
 
   embeddings:
     output_dir:   "${outputs_root}/embeddings"
@@ -350,7 +341,6 @@ BiasOrigin:
   controlled:
     ckpts_dir:        "${outputs_root}/controlled_ckpts"
     mixtures_dir:     "${manifests_dir}/controlled_mixtures"
-    results_e1_dir:   "${outputs_root}/results_e1_driver"
     objectives:       [ssl, supervised, image_text]
     backbones:        [vit_s, vit_b]
     inits:            {vit_s: dinov3_s, vit_b: dinov3_b}
@@ -372,109 +362,29 @@ BiasOrigin:
     lr:               0.0001
     weight_decay:     0.05
     warmup_fraction:  0.1
-    ssl_method:       contrastive
     ssl_temp:         0.1
     clip_temp:        0.07
     text_encoder:     emilyalsentzer/Bio_ClinicalBERT
     bf16:             true
     gradient_checkpointing: true
 
-  mitigation:
-    methods_all_encoders:
-      [resample, reweigh, group_dro, adversarial, reduction,
-       eo_shift, platt_recal, leace, inlp]
-    methods_image_text_only: [fairclip_ot]
-    auroc_tolerance_pts: 1.0
-    head_types: [linear, mlp]
-    attributes: [race_grp, age_grp]
-    results_e2_dir:   "${outputs_root}/results_e2_ceiling"
-
-  mechanism:
-    results_e3_dir:        "${outputs_root}/results_e3_mechanism"
-    n_splits:              5
-    n_perm:                1000
-
   generalization:
-    results_e4_dir:  "${outputs_root}/results_e4_generalization"
-    results_e5_dir:  "${outputs_root}/results_e5_crossmodal"
     derm_findings:   [malignant]
     fundus_findings: [glaucoma]
 
-  finetuning:
-    enabled:        true
-    results_e6_dir: "${outputs_root}/results_e6_finetuning"
-    encoders:       [rad_dino, dinov2_large]
-    levels:         [linear, last_block, lora, full]
-    attributes:     [race_grp, sex_grp, age_grp]
-    epochs:         10
-    batch_size:     64
-    lr_head:        1.0e-3
-    lr_backbone:    1.0e-5
-    weight_decay:   0.05
-    warmup_fraction: 0.1
-    lora_rank:      8
-    lora_alpha:     16
-    bf16:           true
-    max_train:      null
-    num_workers:    8
-    gradient_checkpointing: true
-    early_stopping:   true
-    es_min_epochs:    1
-    es_patience:      3
-    es_min_delta:     0.0005
-    es_max_val_batches: null
-
   stats:
     n_boot:               1000
-    n_perm:               1000
     boot_seed:            0
-    boot_unit:            patient
     fdr_alpha:            0.05
     operating_sensitivity: 0.80
     head_max_train: 100000
-    bootstrap_n_jobs: auto
-    claim_stale_after_s: 21600
-
-  final_tables:
-    dir: "${outputs_root}/final_tables"
-    performance_csv:      "${outputs_root}/final_tables/results_performance.csv"
-    statistics_csv:       "${outputs_root}/final_tables/results_statistics.csv"
-    frontier_curves_csv:  "${outputs_root}/final_tables/results_frontier_curves.csv"
-    run_metadata_csv:     "${outputs_root}/final_tables/results_run_metadata.csv"
-    subgroup_counts_csv:  "${outputs_root}/final_tables/results_subgroup_counts.csv"
-
-  theory:
-    results_e7_dir:  "${outputs_root}/results_e7_theory"
-    n_synthetic:     4000
-    n_signal_dims:   32
-    n_nuisance_dims: 128
-    collinearity_grid: [0.0, 0.1, 0.25, 0.5, 0.75, 1.0]
-    n_seeds:         5
-
-  acquisition:
-    results_e10_dir: "${outputs_root}/results_e10_acquisition"
-    encoders:        [rad_dino, dinov2_large]
-    attributes:      [race_grp, age_grp]
-    stratifiers:     [view]
-    technical_attributes: [view, site]
-    drop_levels:     [unknown]
-    min_stratum_n:   500
-    min_subgroup_n:  20
 
   gap_null:
-    results_e8_dir:  "${outputs_root}/results_e8_gapnull"
     n_sim:           2000
-    seed:            0
     min_subgroup_n:  20
-    min_subgroups:   2
-    method:              hanley
-    verify_exact_cells:  12
-    source_arms:     [e2, e4, e6]
 
   published:
-    results_e11_dir:  "${outputs_root}/results_e11_published"
     claims_csv:       "${manifests_dir}/published_claims.csv"
-    out_csv:          "${outputs_root}/results_e11_published/generalization_audit.csv"
     n_sim:            2000
     seed:             0
     min_subgroups:    2
@@ -502,14 +412,16 @@ BiasOrigin:
       - tayebi_arasteh_2023_domain_transfer
       - kaess_2025
 
-  positive_control:
-    enabled:         true
-    results_e9_dir:  "${outputs_root}/results_e9_positive_control"
-    encoders:        [rad_dino, txrv_densenet]
-    modes:           [decodable_only, entangled]
-    strengths:
-      decodable_only: [0.0, 0.25, 0.5, 1.0]
-      entangled:      [0, 1, 4, 16, 64, 256]
-    findings:        [pleural_effusion, cardiomegaly, fracture]
-    attribute:       race_grp
-    methods:         [reweigh, eo_shift, leace, inlp]
+  subgroups:
+    scores_dir:         "${outputs_root}/scores"
+    results_chance_dir: "${outputs_root}/results_chance"
+    final_tables_dir:   "${outputs_root}/final_tables"
+    unrecorded_levels:  {race_grp: [Other], insurance_grp: [Other], view: [UNKNOWN]}
+    attributes:
+      cxr_pool:    [race_grp, age_grp, sex_grp, insurance_grp, view, site]
+      derm_pool:   [fst_grp, sex_grp, age_grp]
+      fundus_pool: [race_grp, ethnicity_grp, sex_grp, age_grp]
+    strata:
+      cxr_pool: {by: [site], attributes: [race_grp, age_grp, sex_grp, insurance_grp]}
+    strata_joint:
+      cxr_pool: {by: [site+age_grp, site+view, site+view+age_grp], attributes: [race_grp, sex_grp, insurance_grp]}

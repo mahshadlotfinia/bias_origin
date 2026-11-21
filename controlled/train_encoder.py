@@ -8,11 +8,9 @@ https://github.com/mahshadlotfinia
 
 import math
 import os
-import time
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -43,11 +41,6 @@ def parse_run_id(run_id: str) -> Dict[str, str]:
     _, objective, backbone, init, data_comp, seed_tok = parts
     return {"objective": objective, "backbone": backbone, "init": init,
             "data_comp": data_comp, "seed": int(seed_tok.replace("seed", ""))}
-
-
-def _timm_hub(hf_id: str) -> str:
-    s = str(hf_id)
-    return s if s.startswith("hf-hub:") else f"hf-hub:{s}"
 
 
 def _with_timeout(fn, timeout_s: float, label: str):
@@ -87,13 +80,11 @@ def _maybe_enable_grad_checkpointing(model, cfg: dict):
 
 
 def _load_hf_offline_first(loader_fn, hf_id: str, label: str, timeout_s: float = 90.0):
-    t0 = time.time()
     try:
         result = _with_timeout(lambda: loader_fn(hf_id, local_files_only=True),
                                timeout_s, f"offline load of {label} '{hf_id}'")
         return result
-    except Exception as e:
-        t1 = time.time()
+    except Exception:
         result = _with_timeout(lambda: loader_fn(hf_id), timeout_s,
                                f"network load of {label} '{hf_id}'")
         return result
@@ -313,7 +304,7 @@ def _load_progress(path: str):
         return None
     try:
         return torch.load(path, map_location="cpu")
-    except Exception as e:
+    except Exception:
         return None
 
 
@@ -322,7 +313,7 @@ def _try_resume(prog: dict, run_id: str, tag: str, **components) -> int:
         for obj, key in components.values():
             obj.load_state_dict(prog[key])
         return int(prog["epoch"])
-    except (RuntimeError, KeyError) as e:
+    except (RuntimeError, KeyError):
         return 0
 
 

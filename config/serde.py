@@ -1,6 +1,8 @@
 """
 config/serde.py
+Created on June 29, 2026
 
+@author: Mahshad Lotfinia
 https://github.com/mahshadlotfinia
 """
 
@@ -38,8 +40,3 @@ def read_config(config_path: str) -> dict:
             break
         flat_vars = resolved
     return _resolve_all(cfg, flat_vars)
-
-
-def write_config(params: dict, cfg_path: str) -> None:
-    with open(cfg_path, "w") as f:
-        yaml.dump(params, f, default_flow_style=False, allow_unicode=True)

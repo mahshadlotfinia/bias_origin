@@ -53,7 +53,7 @@ def purge_model_cache(hf_id: str, cfg_path: str, enabled: Optional[bool] = None)
         return
     try:
         shutil.rmtree(folder)
-    except Exception as e:
+    except Exception:
         pass
 
 

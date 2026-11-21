@@ -15,9 +15,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from config.serde import read_config
-from data_loader.derm_fundus_embedding_loaders import (
-    get_embedding_loader, embedding_collate_fn,
-)
+from data_loader.base_embedding_loader import embedding_collate_fn
+from data_loader.derm_fundus_embedding_loaders import get_embedding_loader
 from encoders.image_encoders import extract_image_embeddings, list_encoder_names
 from encoders.cache_utils import purge_encoders_after_stage
 
@@ -40,8 +39,6 @@ def _is_done(npz: str, expected_ids: List[str]) -> bool:
         if "case_ids" in d.files:
             cached = [str(c) for c in d["case_ids"]]
             if cached != [str(c) for c in expected_ids]:
-                n_diff = sum(a != b for a, b in zip(cached, expected_ids))
-                same_set = set(cached) == set(map(str, expected_ids))
                 return False
         if emb.shape[0] > 0 and not np.isfinite(emb).all(axis=1).any():
             return False
@@ -77,7 +74,6 @@ def extract_pool(
     npz = _npz_path(output_dir, encoder, pool)
     loader_cls = get_embedding_loader(modality)
     ds = loader_cls(cfg_path, manifest, resolution=resolution, label_cols=None)
-    n_expected = len(ds)
     expected_ids = [str(r.get("case_id", "")) for r in ds.records]
 
     if _is_done(npz, expected_ids):

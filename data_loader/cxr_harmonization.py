@@ -20,12 +20,7 @@ CANONICAL_PATHOLOGY_FINDINGS: List[str] = [
     f for f in CANONICAL_CXR_FINDINGS if f != "no_finding"
 ]
 
-CXR_SITES: List[str] = [
-    "mimic", "chexpert", "vindr_cxr", "nih_cxr14", "padchest", "vindr_pcxr",
-]
 
-IMAGE_KEY_COL = "image_key"
-IMAGE_SUBDIR_COL = "image_subdir"
 VIEW_KEEP = {"PA", "AP"}
 
 

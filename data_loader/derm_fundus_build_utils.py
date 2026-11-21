@@ -6,25 +6,9 @@ Created on June 29, 2026
 https://github.com/mahshadlotfinia
 """
 
-import os
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, Optional, Sequence
 
 import numpy as np
-from PIL import Image
-
-
-def ensure_resized(src_path: str, dst_path: str, res: int = 224) -> bool:
-    if dst_path and os.path.exists(dst_path):
-        return True
-    if not os.path.exists(src_path):
-        return False
-    try:
-        img = Image.open(src_path).convert("RGB").resize((res, res), Image.LANCZOS)
-        os.makedirs(os.path.dirname(dst_path), exist_ok=True)
-        img.save(dst_path)
-        return True
-    except (OSError, ValueError):
-        return False
 
 
 def assign_split(
